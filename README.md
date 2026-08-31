@@ -1,19 +1,34 @@
-# Preislisten-Analyzer & Angebotsgenerator V6
+# Preislisten-Analyzer & Angebotsgenerator V8
 
 GitHub-Pages-Webapp zum Durchsuchen mehrerer Preislisten und schnellen Erstellen eines Excel-Angebots.
 
-## Neu in V6: Schnellangebot
+## Neu in V8
 
-Die Angebotsbearbeitung wurde für möglichst wenige Klicks erweitert:
+- Die bisherige manuelle Zusatzrabatt-Spalte heißt jetzt **Second Discount %**.
+- Second Discount wird nach dem Net Price angewendet: `Net Price × (1 − Second Discount)` = Angebot/Stk.
+- Second Discount kann pro Position oder gesammelt für alle Positionen gesetzt werden.
+- Im Excel-Export ist **Second Discount** separat über die Exportoptionen ein-/ausschaltbar.
 
-- **Enter-Schnellsuche:** Suchbegriff oder Artikelnummer eingeben und `Enter` drücken. Der erste Treffer wird sofort ins Angebot übernommen. Ist der Artikel bereits enthalten, wird seine Menge um 1 erhöht.
-- **Menge auf alle:** Eine Menge kann mit einem Klick auf alle ausgewählten Positionen gesetzt werden.
-- **Rabatt auf alle:** Ein zusätzlicher Rabatt kann mit einem Klick auf alle Positionen gesetzt werden.
-- **Automatische Angebotsnummer:** erzeugt Nummern nach dem Muster `AN-20260831-001`.
-- **Angebotsdatum:** wird im Kopf der Excel-Datei verwendet.
-- **Entwurf speichern / letzten laden:** das aktuelle Angebot kann lokal im Browser gespeichert und später fortgesetzt werden.
-- **Automatische Entwurfssicherung:** Änderungen an Positionen, Menge, Rabatt und Angebotsdaten werden lokal gespeichert.
-- **Neues Angebot:** leert Positionen und Kundendaten und erzeugt direkt eine neue Angebotsnummer.
+- **Produktbilder in der Suche:** eingebettete Excel-Zellbilder werden bei `.xlsx`-Preislisten ausgelesen und als Thumbnail angezeigt. Ein Klick öffnet das Bild größer.
+- **Bilder auch in der Angebotsauswahl:** zur schnellen visuellen Kontrolle; sie werden weiterhin **nicht** in die Angebots-Excel exportiert.
+- **Farbe / RAL:** automatische Erkennung der Spalte `COLOR`, `RAL` oder `Farbe`.
+- **RAL als Text + Farbfeld:** z. B. `RAL 5015`; Kombinationen wie `RAL 7015 / RAL 9005` zeigen mehrere Farbfelder.
+- **Farbe / RAL als optionale Excel-Spalte:** über die Exportoptionen ein-/ausschaltbar. In Excel wird der Text ausgegeben und bei bekannten RAL-Farben die Zelle näherungsweise eingefärbt.
+- **Suchfilter:** nach Preisliste, Family/Gruppe und Farbe/RAL.
+- **Filter komplett deaktivierbar:** über den Schalter `Filter aktiv` im Suchbereich. Die Einstellung wird lokal gespeichert.
+
+> RAL-Farbfelder sind nur eine RGB-/Bildschirm-Näherung. Für die eindeutige Farbangabe gilt immer die RAL-Nummer.
+
+## Schnellangebot aus V6
+
+- Artikelnummer oder Modell eingeben und `Enter` drücken
+- gleicher Artikel erneut → Menge wird um 1 erhöht
+- Menge auf alle Positionen setzen
+- Second Discount auf alle Positionen setzen
+- Angebotsnummer automatisch erzeugen
+- Angebotsdatum und Währung
+- Entwurf speichern / laden
+- automatische lokale Entwurfssicherung
 
 ## Frei wählbare Excel-Spalten
 
@@ -22,29 +37,18 @@ Unter **Optionen für Excel-Übertragung** lässt sich jede Spalte separat an- o
 - Pos.
 - Artikelnummer
 - Modell
+- Farbe / RAL
 - Family / Gruppe
 - Menge
 - List Price
 - Discount / Preislistenrabatt
 - Net Price
-- Zusatzrabatt
+- Second Discount
 - Angebot/Stk.
 - Gesamt
 - Preisliste / Quelle
 
-Die Auswahl wird im Browser gespeichert. `DESCRIPTION` und Produktbilder werden nicht in das Angebot exportiert.
-
-## Weitere Funktionen
-
-- Mehrere Excel-/XLS-/CSV-Preislisten gleichzeitig laden
-- Preislisten dauerhaft in IndexedDB im Browser speichern
-- Einzelne Preislisten aktivieren/deaktivieren
-- Eine Suche über alle aktiven Preislisten
-- Suche nach Artikelnummer, Modell und weiteren Inhalten der Preislistenzeile
-- Menge pro Position
-- Zusätzlicher Rabatt pro Position
-- Automatischer Excel-Angebotsexport mit Formeln
-- Kunde, Angebotsnummer, Angebotsdatum und Währung
+`DESCRIPTION` und Produktbilder werden nicht in das Angebot exportiert.
 
 ## Hofmann 2026
 
@@ -52,21 +56,27 @@ Für die bereitgestellte Hofmann-Preisliste werden insbesondere erkannt:
 
 - `P/N` → Artikelnummer
 - `MODEL` → Modell
+- `COLOR` → Farbe / RAL
 - `List Price` → Listenpreis
 - `Discount` → Preislistenrabatt
 - `Net Price` → Netto/Stk.
 - `FAMILY` → Produktgruppe
+- `PRODUCT IMAGE` → eingebettetes Produktbild (bei erneutem Import in V8)
 
 Die lange `DESCRIPTION` kann bei der Suche helfen, wird aber nicht in das Angebot übernommen.
 
-## GitHub Pages
+## Wichtig beim Update auf V8
 
-1. Neues Repository erstellen oder bestehendes Repository öffnen.
-2. `index.html`, `styles.css` und `app.js` hochladen/ersetzen.
-3. GitHub: **Settings → Pages**.
-4. Haupt-Branch und `/ (root)` auswählen.
-5. Seite öffnen und Preislisten einmalig importieren.
+Bereits in V6 gespeicherte Preislisten enthalten die eingebetteten Bilddateien nicht. Nach dem Austausch von `index.html`, `styles.css` und `app.js` deshalb die originale `.xlsx`-Preisliste **einmal erneut über „Preislisten hinzufügen“ importieren**. Danach werden die Bilder zusammen mit der Preisliste lokal im Browser gespeichert.
+
+## GitHub Pages aktualisieren
+
+1. Im bestehenden Repository `index.html`, `styles.css` und `app.js` durch die V8-Dateien ersetzen.
+2. Änderungen auf dem `main`-Branch speichern/committen.
+3. GitHub Pages aktualisiert die Website automatisch.
+4. Seite neu laden. Falls noch die alte Version sichtbar ist, einmal mit `Strg + F5` hart aktualisieren.
+5. Die originale Preislisten-Excel einmal neu importieren, damit V8 die Produktbilder speichern kann.
 
 ## Datenschutz / Speicherung
 
-Preislisten, Exportoptionen und Angebotsentwurf werden lokal im Browser gespeichert und nicht auf einen Server hochgeladen. Werden Browser-/Website-Daten gelöscht oder eine andere GitHub-Pages-Adresse verwendet, sind diese lokalen Daten nicht mehr verfügbar.
+Preislisten, Produktbilder, Exportoptionen, Suchfilter und Angebotsentwurf werden lokal im Browser gespeichert und nicht auf einen eigenen Server hochgeladen. Werden Browser-/Website-Daten gelöscht oder eine andere GitHub-Pages-Adresse verwendet, sind diese lokalen Daten nicht mehr verfügbar.

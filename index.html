@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Preislisten-Analyzer & Angebotsgenerator</title>
   <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 </head>
 <body>
@@ -13,7 +14,7 @@
       <h1>Preislisten-Analyzer</h1>
       <p>Mehrere Preislisten durchsuchen und ausgewählte Positionen automatisch in ein Excel-Angebot übertragen.</p>
     </div>
-    <div class="badge">V6 · Schnellangebot</div>
+    <div class="badge">V8 · Bilder, RAL, Filter & Second Discount</div>
   </header>
 
   <main class="container">
@@ -52,6 +53,7 @@
         <label>Preislistenrabatt<select id="priceListDiscountCol"></select></label>
         <label>Netto-Preis<select id="netPriceCol"></select></label>
         <label>Familie / Gruppe<select id="familyCol"></select></label>
+        <label>Farbe / RAL<select id="colorCol"></select></label>
       </div>
     </section>
 
@@ -61,7 +63,13 @@
           <h2>3. Produkte auswählen</h2>
           <p class="muted">Eine Suche läuft über alle aktivierten Preislisten. Suche nach Artikelnummer, Modell oder beliebigem Begriff.</p>
         </div>
-        <button id="clearSearchBtn" class="ghost-btn">Suche löschen</button>
+        <div class="button-row">
+          <label class="toggle-chip" title="Zusatzfilter für Preisliste, Family und Farbe an- oder ausschalten">
+            <input id="filtersEnabledToggle" type="checkbox" checked />
+            <span>Filter aktiv</span>
+          </label>
+          <button id="clearSearchBtn" class="ghost-btn">Suche löschen</button>
+        </div>
       </div>
       <div class="search-row">
         <input id="searchInput" type="search" placeholder="z. B. EEWAEU715TB4, geoliner 678, tyre changer …" />
@@ -69,14 +77,26 @@
       </div>
       <div class="shortcut-hint"><strong>⌨ Schnell:</strong> Suchbegriff eingeben und <kbd>Enter</kbd> drücken – der erste Treffer wird direkt ins Angebot übernommen. Ist er schon enthalten, erhöht sich die Menge um 1.</div>
 
+      <div id="filterPanel" class="search-filters">
+        <label>Preisliste<select id="sourceFilter"><option value="">Alle Preislisten</option></select></label>
+        <label>Family / Gruppe<select id="familyFilter"><option value="">Alle Families</option></select></label>
+        <label>Farbe / RAL<select id="colorFilter"><option value="">Alle Farben</option></select></label>
+        <div class="filter-actions">
+          <button id="clearFiltersBtn" class="mini-btn" type="button">Filter zurücksetzen</button>
+        </div>
+      </div>
+      <p class="color-note">RAL-Farbfelder sind eine Bildschirm-Näherung. Für die eindeutige Farbe gilt immer die angezeigte RAL-Nummer.</p>
+
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
               <th></th>
+              <th>Bild</th>
               <th>Preisliste</th>
               <th>Artikelnummer</th>
               <th>Modell</th>
+              <th>Farbe / RAL</th>
               <th>Familie</th>
               <th class="num">Listenpreis</th>
               <th class="num">PL-Rabatt</th>
@@ -92,7 +112,7 @@
       <div class="section-head">
         <div>
           <h2>4. Angebot erstellen</h2>
-          <p class="muted">Menge und Zusatzrabatt einstellen. Danach werden alle ausgewählten Produkte automatisch in eine Excel-Angebotsdatei übertragen.</p>
+          <p class="muted">Menge und Second Discount einstellen. Danach werden alle ausgewählten Produkte automatisch in eine Excel-Angebotsdatei übertragen.</p>
         </div>
         <div class="button-row">
           <button id="clearOfferBtn" class="ghost-btn">Auswahl leeren</button>
@@ -124,8 +144,8 @@
             <button id="applyQtyAllBtn" class="mini-btn" type="button">Menge auf alle</button>
           </div>
           <div class="quick-action-group inline-action">
-            <input id="bulkDiscount" type="number" min="0" max="100" step="0.1" value="0" aria-label="Zusatzrabatt für alle" />
-            <button id="applyDiscountAllBtn" class="mini-btn" type="button">Rabatt auf alle</button>
+            <input id="bulkDiscount" type="number" min="0" max="100" step="0.1" value="0" aria-label="Second Discount für alle" />
+            <button id="applyDiscountAllBtn" class="mini-btn" type="button">Second Discount auf alle</button>
           </div>
           <div class="quick-action-group draft-actions">
             <button id="saveDraftBtn" class="mini-btn" type="button">Entwurf speichern</button>
@@ -154,13 +174,15 @@
           <thead>
             <tr>
               <th>Pos.</th>
+              <th>Bild</th>
               <th>Artikelnummer</th>
               <th>Modell</th>
+              <th>Farbe / RAL</th>
               <th>Menge</th>
               <th class="num">Listenpreis</th>
               <th class="num">PL-Rabatt</th>
               <th class="num">Netto/Stk.</th>
-              <th>Zusatzrabatt %</th>
+              <th>Second Discount %</th>
               <th class="num">Angebot/Stk.</th>
               <th class="num">Gesamt</th>
               <th></th>
@@ -169,7 +191,7 @@
           <tbody id="offerBody"></tbody>
           <tfoot>
             <tr>
-              <td colspan="9" class="total-label">Gesamtsumme</td>
+              <td colspan="11" class="total-label">Gesamtsumme</td>
               <td id="grandTotal" class="num total-value">0,00 EUR</td>
               <td></td>
             </tr>
@@ -178,6 +200,12 @@
       </div>
     </section>
   </main>
+
+  <dialog id="imageDialog" class="image-dialog">
+    <button id="closeImageDialog" class="image-dialog-close" type="button" aria-label="Bild schließen">×</button>
+    <img id="imageDialogImg" alt="Produktbild groß" />
+    <div id="imageDialogCaption" class="image-dialog-caption"></div>
+  </dialog>
 
   <footer>
     <p>Preislisten-Analyzer · Preislisten und Verarbeitung bleiben lokal in diesem Browser</p>
