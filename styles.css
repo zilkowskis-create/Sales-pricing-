@@ -512,3 +512,7 @@ kbd {
 }
 .price-list-tab small { color: #64748b; font-size: 11px; }
 .price-list-tab.active small { color: #315b9d; }
+
+/* V15: keep search result columns stable even while images are loading */
+#resultsBody .image-cell, #offerBody .image-cell { min-width: 86px; }
+#resultsBody > tr > td:first-child { width: 42px; min-width: 42px; }

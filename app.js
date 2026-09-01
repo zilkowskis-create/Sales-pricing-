@@ -1495,6 +1495,7 @@ function isDarkHex(hex) {
 async function extractImagesForSheet(arrayBuffer, sheetName) {
   const empty = { images: {}, rowToImageId: {} };
   if (!arrayBuffer || typeof JSZip === 'undefined') return empty;
+
   try {
     const zip = await JSZip.loadAsync(arrayBuffer);
     const parser = new DOMParser();
@@ -1502,6 +1503,18 @@ async function extractImagesForSheet(arrayBuffer, sheetName) {
       const file = zip.file(path);
       if (!file) return null;
       return parser.parseFromString(await file.async('text'), 'application/xml');
+    };
+    const relId = node => node?.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id') || node?.getAttribute('r:id') || '';
+    const relationshipMap = doc => Object.fromEntries(Array.from(doc?.getElementsByTagNameNS('*', 'Relationship') || [])
+      .map(node => [node.getAttribute('Id'), node.getAttribute('Target')]));
+    const mimeForPath = path => {
+      const ext = String(path || '').split('.').pop().toLowerCase();
+      if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+      if (ext === 'gif') return 'image/gif';
+      if (ext === 'webp') return 'image/webp';
+      if (ext === 'svg') return 'image/svg+xml';
+      if (ext === 'bmp') return 'image/bmp';
+      return 'image/png';
     };
 
     const workbookDoc = await readXml('xl/workbook.xml');
@@ -1511,69 +1524,106 @@ async function extractImagesForSheet(arrayBuffer, sheetName) {
     const sheetNode = Array.from(workbookDoc.getElementsByTagNameNS('*', 'sheet'))
       .find(node => node.getAttribute('name') === sheetName);
     if (!sheetNode) return empty;
-    const sheetRelId = sheetNode.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id') || sheetNode.getAttribute('r:id');
-    const workbookRel = Array.from(workbookRelsDoc.getElementsByTagNameNS('*', 'Relationship'))
-      .find(node => node.getAttribute('Id') === sheetRelId);
-    if (!workbookRel) return empty;
-    const sheetPath = resolveZipPath('xl/workbook.xml', workbookRel.getAttribute('Target'));
+
+    const workbookTargets = relationshipMap(workbookRelsDoc);
+    const sheetPath = resolveZipPath('xl/workbook.xml', workbookTargets[relId(sheetNode)]);
     const sheetDoc = await readXml(sheetPath);
     if (!sheetDoc) return empty;
-
-    const cellsWithRichValue = Array.from(sheetDoc.getElementsByTagNameNS('*', 'c'))
-      .filter(cell => cell.hasAttribute('vm'));
-    if (!cellsWithRichValue.length) return empty;
-
-    const metadataDoc = await readXml('xl/metadata.xml');
-    const richValuesDoc = await readXml('xl/richData/rdrichvalue.xml');
-    const richValueRelDoc = await readXml('xl/richData/richValueRel.xml');
-    const richValueRelsDoc = await readXml('xl/richData/_rels/richValueRel.xml.rels');
-    if (!metadataDoc || !richValuesDoc || !richValueRelDoc || !richValueRelsDoc) return empty;
-
-    const futureMetadata = Array.from(metadataDoc.getElementsByTagNameNS('*', 'futureMetadata'))
-      .find(node => node.getAttribute('name') === 'XLRICHVALUE');
-    if (!futureMetadata) return empty;
-    const metadataBlocks = Array.from(futureMetadata.getElementsByTagNameNS('*', 'bk'));
-    const richValues = Array.from(richValuesDoc.getElementsByTagNameNS('*', 'rv'));
-    const richRelations = Array.from(richValueRelDoc.getElementsByTagNameNS('*', 'rel'));
-    const relTargetById = Object.fromEntries(Array.from(richValueRelsDoc.getElementsByTagNameNS('*', 'Relationship'))
-      .map(node => [node.getAttribute('Id'), node.getAttribute('Target')]));
 
     const images = {};
     const rowToImageId = {};
     const imageCacheByPath = {};
-
-    for (const cell of cellsWithRichValue) {
-      const address = cell.getAttribute('r') || '';
-      const rowMatch = address.match(/(\d+)$/);
-      const vm = Number(cell.getAttribute('vm'));
-      if (!rowMatch || !vm || !metadataBlocks[vm - 1]) continue;
-
-      const rvb = metadataBlocks[vm - 1].getElementsByTagNameNS('*', 'rvb')[0];
-      const richIndex = Number(rvb?.getAttribute('i'));
-      const richValue = richValues[richIndex];
-      if (!richValue) continue;
-      const values = Array.from(richValue.getElementsByTagNameNS('*', 'v'));
-      const localImageIndex = Number(values[0]?.textContent);
-      const relation = richRelations[localImageIndex];
-      if (!relation) continue;
-      const relationId = relation.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id') || relation.getAttribute('r:id');
-      const target = relTargetById[relationId];
-      if (!target) continue;
-      const mediaPath = resolveZipPath('xl/richData/richValueRel.xml', target);
+    const loadImage = async mediaPath => {
+      if (!mediaPath) return '';
+      if (imageCacheByPath[mediaPath]) return imageCacheByPath[mediaPath];
       const mediaFile = zip.file(mediaPath);
-      if (!mediaFile) continue;
+      if (!mediaFile) return '';
+      const dataUrl = `data:${mimeForPath(mediaPath)};base64,${await mediaFile.async('base64')}`;
+      imageCacheByPath[mediaPath] = dataUrl;
+      images[mediaPath] = dataUrl;
+      return mediaPath;
+    };
 
-      let dataUrl = imageCacheByPath[mediaPath];
-      if (!dataUrl) {
-        const ext = mediaPath.split('.').pop().toLowerCase();
-        const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'gif' ? 'image/gif' : ext === 'webp' ? 'image/webp' : 'image/png';
-        dataUrl = `data:${mime};base64,${await mediaFile.async('base64')}`;
-        imageCacheByPath[mediaPath] = dataUrl;
+    // 1) Excel "Picture in Cell" / rich-value images.
+    // Hofmann uses these for many product pictures (e.g. cells B11, B15, ...).
+    const cellsWithRichValue = Array.from(sheetDoc.getElementsByTagNameNS('*', 'c'))
+      .filter(cell => cell.hasAttribute('vm'));
+
+    if (cellsWithRichValue.length) {
+      const metadataDoc = await readXml('xl/metadata.xml');
+      const richValuesDoc = await readXml('xl/richData/rdrichvalue.xml');
+      const richValueRelDoc = await readXml('xl/richData/richValueRel.xml');
+      const richValueRelsDoc = await readXml('xl/richData/_rels/richValueRel.xml.rels');
+
+      if (metadataDoc && richValuesDoc && richValueRelDoc && richValueRelsDoc) {
+        const futureMetadata = Array.from(metadataDoc.getElementsByTagNameNS('*', 'futureMetadata'))
+          .find(node => node.getAttribute('name') === 'XLRICHVALUE');
+        const metadataBlocks = futureMetadata ? Array.from(futureMetadata.getElementsByTagNameNS('*', 'bk')) : [];
+        const richValues = Array.from(richValuesDoc.getElementsByTagNameNS('*', 'rv'));
+        const richRelations = Array.from(richValueRelDoc.getElementsByTagNameNS('*', 'rel'));
+        const relTargetById = relationshipMap(richValueRelsDoc);
+
+        for (const cell of cellsWithRichValue) {
+          const address = cell.getAttribute('r') || '';
+          const rowMatch = address.match(/(\d+)$/);
+          const vm = Number(cell.getAttribute('vm'));
+          if (!rowMatch || !vm || !metadataBlocks[vm - 1]) continue;
+
+          const rvb = metadataBlocks[vm - 1].getElementsByTagNameNS('*', 'rvb')[0];
+          const richIndex = Number(rvb?.getAttribute('i'));
+          const richValue = richValues[richIndex];
+          if (!richValue) continue;
+
+          const values = Array.from(richValue.getElementsByTagNameNS('*', 'v'));
+          const localImageIndex = Number(values[0]?.textContent);
+          const relation = richRelations[localImageIndex];
+          const target = relation ? relTargetById[relId(relation)] : '';
+          if (!target) continue;
+
+          const mediaPath = resolveZipPath('xl/richData/richValueRel.xml', target);
+          const imageId = await loadImage(mediaPath);
+          if (imageId) rowToImageId[Number(rowMatch[1])] = imageId;
+        }
       }
-      const imageId = mediaPath;
-      images[imageId] = dataUrl;
-      rowToImageId[Number(rowMatch[1])] = imageId;
     }
+
+    // 2) Traditional floating worksheet images / drawings.
+    // Some price-list tabs use normal drawing anchors instead of rich-value cells.
+    const sheetRelsPath = `${sheetPath.replace(/\/[^/]+$/, '')}/_rels/${sheetPath.split('/').pop()}.rels`;
+    const sheetRelsDoc = await readXml(sheetRelsPath);
+    const sheetTargets = relationshipMap(sheetRelsDoc);
+    const drawingNodes = Array.from(sheetDoc.getElementsByTagNameNS('*', 'drawing'));
+
+    for (const drawingNode of drawingNodes) {
+      const drawingTarget = sheetTargets[relId(drawingNode)];
+      if (!drawingTarget) continue;
+      const drawingPath = resolveZipPath(sheetPath, drawingTarget);
+      const drawingDoc = await readXml(drawingPath);
+      if (!drawingDoc) continue;
+
+      const drawingRelsPath = `${drawingPath.replace(/\/[^/]+$/, '')}/_rels/${drawingPath.split('/').pop()}.rels`;
+      const drawingRelsDoc = await readXml(drawingRelsPath);
+      const drawingTargets = relationshipMap(drawingRelsDoc);
+      const anchors = [
+        ...Array.from(drawingDoc.getElementsByTagNameNS('*', 'twoCellAnchor')),
+        ...Array.from(drawingDoc.getElementsByTagNameNS('*', 'oneCellAnchor'))
+      ];
+
+      for (const anchor of anchors) {
+        const from = anchor.getElementsByTagNameNS('*', 'from')[0];
+        const rowNode = from?.getElementsByTagNameNS('*', 'row')[0];
+        if (!rowNode) continue;
+        const excelRow = Number(rowNode.textContent) + 1; // drawing coordinates are zero-based
+        const blip = anchor.getElementsByTagNameNS('*', 'blip')[0];
+        const target = blip ? drawingTargets[relId(blip)] : '';
+        if (!target) continue;
+        const mediaPath = resolveZipPath(drawingPath, target);
+        const imageId = await loadImage(mediaPath);
+        // Prefer an explicit in-cell image if both formats point to the same row.
+        if (imageId && !rowToImageId[excelRow]) rowToImageId[excelRow] = imageId;
+      }
+    }
+
     return { images, rowToImageId };
   } catch (err) {
     console.warn('Product images could not be read from this file.', err);
