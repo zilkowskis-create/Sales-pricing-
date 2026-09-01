@@ -553,3 +553,15 @@ kbd {
 }
 .sheet-tab small { font-size: 10px; color: #64748b; }
 .sheet-tab.active small { color: #475569; }
+
+
+/* V19: quick pricing directly in product table */
+.result-price-input {
+  width: 92px;
+  min-width: 82px;
+  padding: 7px 8px;
+  text-align: right;
+}
+.result-units-input { width: 72px; min-width: 66px; }
+.result-total { font-weight: 800; white-space: nowrap; }
+#searchCard table { min-width: 1380px; }

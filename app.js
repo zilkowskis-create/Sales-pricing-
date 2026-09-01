@@ -231,6 +231,11 @@ savedLists.addEventListener('click', async (event) => {
 });
 
 resultsBody.addEventListener('change', (event) => {
+  const priceInput = event.target.closest('[data-result-field]');
+  if (priceInput) {
+    updateResultPricing(priceInput.dataset.resultUid, priceInput.dataset.resultField, priceInput.value);
+    return;
+  }
   const checkbox = event.target.closest('[data-offer-uid]');
   if (!checkbox) return;
   toggleOffer(checkbox.dataset.offerUid, checkbox.checked);
@@ -888,12 +893,16 @@ function renderResults() {
   resultCount.textContent = `${matches.length} results · all shown`;
 
   if (!matches.length) {
-    resultsBody.innerHTML = '<tr><td colspan="10" class="empty">No matching products found.</td></tr>';
+    resultsBody.innerHTML = '<tr><td colspan="13" class="empty">No matching products found.</td></tr>';
     return;
   }
 
   resultsBody.innerHTML = matches.map(item => {
-    const selected = state.offer.some(o => o.uid === item.uid);
+    const offerItem = state.offer.find(o => o.uid === item.uid);
+    const selected = Boolean(offerItem);
+    const qty = offerItem?.qty ?? 1;
+    const secondDiscount = offerItem?.extraDiscount ?? 0;
+    const total = item.netPrice * (1 - secondDiscount / 100) * qty;
     const image = getItemImage(item);
     return `<tr>
       <td><input class="result-check" type="checkbox" data-offer-uid="${escapeAttr(item.uid)}" ${selected ? 'checked' : ''} /></td>
@@ -906,6 +915,9 @@ function renderResults() {
       <td class="num">${formatNumber(item.listPrice)}</td>
       <td class="num">${formatPercent(item.priceListDiscount)}</td>
       <td class="num">${formatNumber(item.netPrice)}</td>
+      <td><input class="result-price-input" type="number" min="0" max="100" step="0.1" value="${secondDiscount}" data-result-field="extraDiscount" data-result-uid="${escapeAttr(item.uid)}" aria-label="Second Discount" /></td>
+      <td><input class="result-price-input result-units-input" type="number" min="1" step="1" value="${qty}" data-result-field="qty" data-result-uid="${escapeAttr(item.uid)}" aria-label="Units" /></td>
+      <td class="num result-total" data-result-total="${escapeAttr(item.uid)}">${formatNumber(total)}</td>
     </tr>`;
   }).join('');
 }
@@ -928,6 +940,24 @@ function quickAddTopResult() {
   renderResults();
   autoSaveDraft();
   searchInput.focus();
+}
+
+function updateResultPricing(uid, field, value) {
+  const sourceItem = allSearchItems().find(x => x.uid === uid);
+  if (!sourceItem) return;
+
+  let item = state.offer.find(x => x.uid === uid);
+  if (!item) {
+    item = { ...sourceItem, qty: 1, extraDiscount: 0 };
+    state.offer.push(item);
+  }
+
+  if (field === 'qty') item.qty = Math.max(1, Math.round(Number(value) || 1));
+  if (field === 'extraDiscount') item.extraDiscount = Math.min(100, Math.max(0, Number(value) || 0));
+
+  renderOffer();
+  renderResults();
+  autoSaveDraft();
 }
 
 function toggleOffer(uid, checked) {
