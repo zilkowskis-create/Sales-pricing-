@@ -4,13 +4,11 @@ const STORE_NAME = 'priceLists';
 const EXPORT_OPTIONS_KEY = 'preislistenAnalyzerExportOptionsV1';
 const DRAFT_KEY = 'preislistenAnalyzerOfferDraftV1';
 const OFFER_SEQUENCE_KEY = 'preislistenAnalyzerOfferSequenceV1';
-const SEARCH_SETTINGS_KEY = 'preislistenAnalyzerSearchSettingsV1';
 
 const DEFAULT_EXPORT_OPTIONS = {
   position: true,
   article: true,
   model: true,
-  color: true,
   family: false,
   qty: true,
   listPrice: true,
@@ -24,26 +22,24 @@ const DEFAULT_EXPORT_OPTIONS = {
 
 const EXPORT_FIELD_LABELS = {
   position: 'Pos.',
-  article: 'Part No.',
-  model: 'Model',
-  color: 'Colour / RAL',
+  article: 'Artikelnummer',
+  model: 'Modell',
   family: 'Family / Gruppe',
-  qty: 'Qty',
+  qty: 'Menge',
   listPrice: 'List Price',
   priceListDiscount: 'Discount',
   netPrice: 'Net Price',
-  extraDiscount: 'Second Discount',
-  finalUnitPrice: 'Quote/Unit',
-  total: 'Total',
-  source: 'Price List / Source'
+  extraDiscount: 'Zusatzrabatt',
+  finalUnitPrice: 'Angebot/Stk.',
+  total: 'Gesamt',
+  source: 'Preisliste / Quelle'
 };
 
 const state = {
   priceLists: [],
   activeListId: null,
   offer: [],
-  exportOptions: loadExportOptions(),
-  searchSettings: loadSearchSettings()
+  exportOptions: loadExportOptions()
 };
 
 const el = (id) => document.getElementById(id);
@@ -61,7 +57,6 @@ const listPriceCol = el('listPriceCol');
 const priceListDiscountCol = el('priceListDiscountCol');
 const netPriceCol = el('netPriceCol');
 const familyCol = el('familyCol');
-const colorCol = el('colorCol');
 const searchInput = el('searchInput');
 const resultsBody = el('resultsBody');
 const resultCount = el('resultCount');
@@ -69,15 +64,6 @@ const offerBody = el('offerBody');
 const grandTotal = el('grandTotal');
 const exportOptionsGrid = el('exportOptionsGrid');
 const draftStatus = el('draftStatus');
-const filtersEnabledToggle = el('filtersEnabledToggle');
-const filterPanel = el('filterPanel');
-const sourceFilter = el('sourceFilter');
-const familyFilter = el('familyFilter');
-const colorFilter = el('colorFilter');
-const imageDialog = el('imageDialog');
-const imageDialogImg = el('imageDialogImg');
-const imageDialogCaption = el('imageDialogCaption');
-const sheetTogglePanel = el('sheetTogglePanel');
 
 fileInput.addEventListener('change', handleFiles);
 priceListSelect.addEventListener('change', () => setActiveList(priceListSelect.value));
@@ -94,43 +80,6 @@ el('clearSearchBtn').addEventListener('click', () => {
   searchInput.value = '';
   renderResults();
   searchInput.focus();
-});
-filtersEnabledToggle.addEventListener('change', () => {
-  state.searchSettings.filtersEnabled = filtersEnabledToggle.checked;
-  saveSearchSettings();
-  renderFilters();
-  renderSheetToggles();
-  renderResults();
-});
-[sourceFilter, familyFilter, colorFilter].forEach(select => select.addEventListener('change', () => {
-  state.searchSettings[select.dataset.settingKey] = select.value;
-  saveSearchSettings();
-  renderFilters();
-  renderResults();
-}));
-el('clearFiltersBtn').addEventListener('click', clearFilters);
-el('allSheetsOnBtn').addEventListener('click', async () => {
-  for (const list of state.priceLists) { list.enabled = true; await savePriceList(list); }
-  refreshAll();
-});
-el('onlyMainSheetBtn').addEventListener('click', async () => {
-  for (const list of state.priceLists) {
-    list.enabled = normalize(list.sheetName) === normalize('HOFMANN 2026');
-    await savePriceList(list);
-  }
-  refreshAll();
-});
-sheetTogglePanel.addEventListener('change', async (event) => {
-  const checkbox = event.target.closest('[data-sheet-toggle]');
-  if (!checkbox) return;
-  const list = state.priceLists.find(x => x.id === checkbox.dataset.sheetToggle);
-  if (!list) return;
-  list.enabled = checkbox.checked;
-  await savePriceList(list);
-  renderSavedLists();
-  renderFilters();
-  renderSheetToggles();
-  renderResults();
 });
 el('clearOfferBtn').addEventListener('click', () => {
   state.offer = [];
@@ -178,7 +127,6 @@ savedLists.addEventListener('change', async (event) => {
   list.enabled = checkbox.checked;
   await savePriceList(list);
   renderSavedLists();
-  renderFilters();
   renderResults();
 });
 
@@ -195,7 +143,7 @@ savedLists.addEventListener('click', async (event) => {
     const id = removeBtn.dataset.removeList;
     const list = state.priceLists.find(x => x.id === id);
     if (!list) return;
-    if (!confirm(`Delete price list “${list.fileName}” from the browser?`)) return;
+    if (!confirm(`Preisliste „${list.fileName}“ aus dem Browser löschen?`)) return;
     await deletePriceList(id);
     state.priceLists = state.priceLists.filter(x => x.id !== id);
     state.offer = state.offer.filter(x => x.listId !== id);
@@ -217,23 +165,9 @@ offerBody.addEventListener('change', (event) => {
 });
 
 offerBody.addEventListener('click', (event) => {
-  const image = event.target.closest('[data-image-preview]');
-  if (image) {
-    openImagePreview(image.src, image.dataset.imageCaption || 'Product image');
-    return;
-  }
   const btn = event.target.closest('[data-remove-offer]');
   if (!btn) return;
   removeOffer(btn.dataset.removeOffer);
-});
-resultsBody.addEventListener('click', (event) => {
-  const image = event.target.closest('[data-image-preview]');
-  if (!image) return;
-  openImagePreview(image.src, image.dataset.imageCaption || 'Product image');
-});
-el('closeImageDialog').addEventListener('click', () => imageDialog.close());
-imageDialog.addEventListener('click', (event) => {
-  if (event.target === imageDialog) imageDialog.close();
 });
 
 init();
@@ -241,27 +175,14 @@ init();
 async function init() {
   try {
     const stored = await getAllPriceLists();
-    state.priceLists = stored.map(list => {
-      const detected = autoDetectMapping(list.headers || []);
-      const upgraded = {
-        ...list,
-        workbook: null,
-        sourceData: null,
-        images: list.images || {},
-        imageRowMap: list.imageRowMap || {},
-        mapping: { ...detected, ...(list.mapping || {}) }
-      };
-      if (!upgraded.mapping.color) upgraded.mapping.color = detected.color || '';
-      upgraded.items = mapItems(upgraded);
-      return upgraded;
-    });
+    state.priceLists = stored.map(list => ({ ...list, workbook: null }));
     state.activeListId = state.priceLists[0]?.id || null;
     refreshAll();
     initializeOfferMeta();
     updateDraftStatus();
   } catch (err) {
     console.error(err);
-    fileInfo.textContent = 'Local storage could not be opened. New price lists can still be loaded.';
+    fileInfo.textContent = 'Lokaler Speicher konnte nicht geöffnet werden. Neue Preislisten können trotzdem geladen werden.';
     refreshAll();
     initializeOfferMeta();
     updateDraftStatus();
@@ -272,7 +193,7 @@ async function handleFiles(event) {
   const files = Array.from(event.target.files || []);
   if (!files.length) return;
 
-  fileInfo.textContent = `${files.length} price list(s) are being processed …`;
+  fileInfo.textContent = `${files.length} Preisliste(n) werden verarbeitet …`;
   let imported = 0;
   let errors = 0;
 
@@ -280,50 +201,26 @@ async function handleFiles(event) {
     try {
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data, { type: 'array', cellDates: true });
-      if (!wb.SheetNames.length) throw new Error('No worksheets found.');
+      if (!wb.SheetNames.length) throw new Error('Keine Tabellenblätter gefunden.');
 
-      const parentFileId = makeListId(file);
-      const productSheets = detectProductSheets(wb);
-      if (!productSheets.length) productSheets.push(detectBestSheet(wb));
+      const id = makeListId(file);
+      const bestSheet = detectBestSheet(wb);
+      const existingIndex = state.priceLists.findIndex(x => x.id === id);
+      const list = buildPriceListFromSheet({
+        id,
+        fileName: file.name,
+        fileSize: file.size,
+        lastModified: file.lastModified,
+        workbook: wb,
+        enabled: existingIndex >= 0 ? state.priceLists[existingIndex].enabled : true
+      }, bestSheet);
 
-      // Alte Einträge derselben Datei entfernen. V10 speichert jedes echte
-      // Preislisten-Blatt separat, damit wirklich alle Positionen durchsuchbar sind.
-      const previous = state.priceLists.filter(x => x.parentFileId === parentFileId || x.id === parentFileId);
-      const previousEnabled = previous.length ? previous.some(x => x.enabled) : true;
-      for (const oldList of previous) await deletePriceList(oldList.id);
-      state.priceLists = state.priceLists.filter(x => !(x.parentFileId === parentFileId || x.id === parentFileId));
-      state.offer = state.offer.filter(x => !(previous.some(p => p.id === x.listId)));
+      if (existingIndex >= 0) state.priceLists.splice(existingIndex, 1, list);
+      else state.priceLists.push(list);
 
-      let lastList = null;
-      for (const sheetName of productSheets) {
-        const extractedImages = await extractImagesForSheet(data, sheetName);
-        const sheetId = `${parentFileId}::sheet::${sheetName}`;
-        const list = buildPriceListFromSheet({
-          id: sheetId,
-          parentFileId,
-          fileName: file.name,
-          displayName: `${file.name} · ${sheetName}`,
-          fileSize: file.size,
-          lastModified: file.lastModified,
-          workbook: wb,
-          sourceData: data,
-          images: extractedImages.images,
-          imageRowMap: extractedImages.rowToImageId,
-          enabled: previousEnabled,
-          lockToSheet: true
-        }, sheetName);
-
-        // Nur Blätter mit tatsächlich erkannten Artikeln speichern.
-        if (!list.items.length) continue;
-        state.priceLists.push(list);
-        await savePriceList(list);
-        lastList = list;
-      }
-
-      if (!lastList) throw new Error('Keine Produktpositionen in der Datei erkannt.');
-      state.activeListId = lastList.id;
+      await savePriceList(list);
+      state.activeListId = list.id;
       imported++;
-      fileInfo.textContent = `${file.name}: ${productSheets.length} price list sheet(s) loaded.`;
     } catch (err) {
       console.error(file.name, err);
       errors++;
@@ -331,24 +228,20 @@ async function handleFiles(event) {
   }
 
   fileInput.value = '';
-  fileInfo.textContent = `${imported} price list(s) saved${errors ? ` · ${errors} error(s)` : ''}.`;
+  fileInfo.textContent = `${imported} Preisliste(n) gespeichert${errors ? ` · ${errors} Fehler` : ''}.`;
   refreshAll();
 }
 
 function buildPriceListFromSheet(base, sheetName) {
   const ws = base.workbook.Sheets[sheetName];
   const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
-  if (!matrix.length) throw new Error(`Sheet “${sheetName}” contains no readable data.`);
+  if (!matrix.length) throw new Error(`Blatt „${sheetName}“ enthält keine lesbaren Daten.`);
 
   const headerInfo = detectHeaderRow(matrix);
   const headers = makeUniqueHeaders(matrix[headerInfo.index].map((v, i) => String(v || `Spalte ${i + 1}`).trim()));
   const rawRows = matrix.slice(headerInfo.index + 1)
-    .map((row, relativeIndex) => ({ row, excelRow: headerInfo.index + 2 + relativeIndex }))
-    .filter(entry => entry.row.some(v => String(v).trim() !== ''))
-    .map(entry => ({
-      ...Object.fromEntries(headers.map((h, i) => [h, entry.row[i] ?? ''])),
-      __excelRow: entry.excelRow
-    }));
+    .filter(row => row.some(v => String(v).trim() !== ''))
+    .map(row => Object.fromEntries(headers.map((h, i) => [h, row[i] ?? ''])));
 
   const mapping = autoDetectMapping(headers);
   const list = {
@@ -362,45 +255,6 @@ function buildPriceListFromSheet(base, sheetName) {
   };
   list.items = mapItems(list);
   return list;
-}
-
-function detectProductSheets(wb) {
-  const excluded = ['languages', 'terms conditions', 'terms & conditions', 'db equipment', 'db accessori', 'db accessories'];
-  const matches = [];
-
-  for (const name of wb.SheetNames) {
-    const normalizedName = normalize(name);
-    if (excluded.some(x => normalizedName === normalize(x))) continue;
-
-    const ws = wb.Sheets[name];
-    if (!ws?.['!ref']) continue;
-    const decoded = XLSX.utils.decode_range(ws['!ref']);
-    const previewRange = XLSX.utils.encode_range({
-      s: { r: decoded.s.r, c: decoded.s.c },
-      e: { r: Math.min(decoded.s.r + 39, decoded.e.r), c: Math.min(decoded.s.c + 30, decoded.e.c) }
-    });
-    const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false, range: previewRange });
-    if (!matrix.length) continue;
-
-    const headerInfo = detectHeaderRow(matrix);
-    const headerRow = matrix[headerInfo.index] || [];
-    const headers = makeUniqueHeaders(headerRow.map((v, i) => String(v || `Spalte ${i + 1}`).trim()));
-    const mapping = autoDetectMapping(headers);
-
-    // Ein echtes Angebotsblatt braucht mindestens Artikelnummer + Preis.
-    // Net Price oder Discount dürfen alternativ vorhanden sein.
-    if (!mapping.article || !mapping.listPrice || (!mapping.netPrice && !mapping.priceListDiscount)) continue;
-
-    const fullMatrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
-    const articleIndex = headers.indexOf(mapping.article);
-    let articleRows = 0;
-    for (const row of fullMatrix.slice(headerInfo.index + 1)) {
-      if (String(row[articleIndex] ?? '').trim()) articleRows++;
-      if (articleRows >= 2) break;
-    }
-    if (articleRows >= 2) matches.push(name);
-  }
-  return matches;
 }
 
 function detectBestSheet(wb) {
@@ -474,12 +328,11 @@ function makeUniqueHeaders(headers) {
 function autoDetectMapping(headers) {
   return {
     article: findHeader(headers, ['p/n', 'pn', 'artikelnummer', 'artikelnr', 'artikel nr', 'article number', 'article no', 'item number', 'item no', 'part number', 'part no', 'material number', 'material', 'sku', 'code']) || '',
-    model: findHeader(headers, ['model', 'item', 'bezeichnung', 'artikelbezeichnung', 'product name', 'produkt', 'product', 'name']) || '',
+    model: findHeader(headers, ['model', 'bezeichnung', 'artikelbezeichnung', 'product name', 'produkt', 'product', 'name']) || '',
     listPrice: findHeader(headers, ['list price', 'listenpreis', 'gross price', 'bruttopreis']) || findHeader(headers, ['price', 'preis']) || '',
-    priceListDiscount: findHeader(headers, ['discount', 'disc. 1', 'disc 1', 'discount 1', 'rabatt', 'price list discount', 'preislistenrabatt']) || '',
+    priceListDiscount: findHeader(headers, ['discount', 'rabatt', 'price list discount', 'preislistenrabatt']) || '',
     netPrice: findHeader(headers, ['net price', 'nettopreis', 'net price euro', 'net']) || '',
-    family: findHeader(headers, ['family', 'familie', 'product type', 'produktgruppe', 'category', 'kategorie']) || '',
-    color: findHeader(headers, ['color', 'colour', 'farbe', 'ral', 'farbton']) || ''
+    family: findHeader(headers, ['family', 'familie', 'product type', 'produktgruppe', 'category', 'kategorie']) || ''
   };
 }
 
@@ -499,11 +352,8 @@ function findHeader(headers, candidates) {
 }
 
 function mapItems(list) {
-  const m = list.mapping || {};
-  let lastImageId = '';
-  let lastImageFamily = '';
-
-  return (list.rawRows || []).map((row, index) => {
+  const m = list.mapping;
+  return list.rawRows.map((row, index) => {
     const article = m.article ? String(row[m.article] ?? '').trim() : '';
     const model = m.model ? String(row[m.model] ?? '').trim() : '';
     const listPrice = m.listPrice ? parsePrice(row[m.listPrice]) : 0;
@@ -513,71 +363,28 @@ function mapItems(list) {
     const calculatedNetPrice = listPrice * (1 - priceListDiscount / 100);
     const netPrice = hasNetPrice ? mappedNetPrice : calculatedNetPrice;
     const family = m.family ? String(row[m.family] ?? '').trim() : '';
-    const color = m.color ? normalizeRalLabel(row[m.color]) : '';
-    const excelRow = Number(row.__excelRow) || (index + 1);
-    let imageId = list.imageRowMap?.[excelRow] || '';
-
-    if (imageId) {
-      lastImageId = imageId;
-      lastImageFamily = normalize(family);
-    } else if (lastImageId && normalize(family) && normalize(family) === lastImageFamily) {
-      imageId = lastImageId;
-    } else if (normalize(family) !== lastImageFamily) {
-      lastImageId = '';
-      lastImageFamily = '';
-    }
-
     const uid = `${list.id}::${index}`;
-    const searchValues = Object.entries(row)
-      .filter(([key]) => key !== '__excelRow')
-      .map(([, value]) => value);
 
     return {
       uid,
       listId: list.id,
       rowIndex: index,
-      excelRow,
-      source: list.displayName || `${list.fileName} · ${list.sheetName}`,
-      sourceFile: list.fileName,
-      sourceSheet: list.sheetName,
+      source: list.fileName,
       article,
       model,
       family,
-      color,
-      imageId,
       listPrice,
       priceListDiscount,
       netPrice,
-      searchText: normalize(searchValues.join(' '))
+      searchText: normalize(Object.values(row).join(' '))
     };
-  }).filter(item => isSelectableProduct(item));
-}
-
-function isSelectableProduct(item) {
-  const article = String(item.article || '').trim();
-  if (!article) return false;
-
-  const lower = normalize(article);
-  const excludedPrefixes = [
-    'note', 'standard discount', 'required by', 'approved by',
-    'date', 'signature', 'customer code', 'customer name', 'country',
-    'payment term', 'referenced price list', 'currency', 'credit limit'
-  ];
-  if (excludedPrefixes.some(prefix => lower.startsWith(prefix))) return false;
-
-  // Echte Preislistenpositionen besitzen in diesen Blättern eine Artikelnummer
-  // und mindestens einen verwertbaren Preis. Dadurch werden Fußnoten,
-  // Freigabefelder und Rabatt-Hinweise nicht mehr als Produkte angeboten.
-  if (!(Number(item.listPrice) > 0 || Number(item.netPrice) > 0)) return false;
-
-  return true;
+  }).filter(item => item.article || item.model);
 }
 
 function refreshAll() {
   renderSavedLists();
   renderPriceListSelector();
   renderMapping();
-  renderFilters();
   renderResults();
   renderOffer();
   renderExportOptions();
@@ -587,15 +394,15 @@ function refreshAll() {
   searchCard.classList.toggle('hidden', !hasLists);
   offerCard.classList.toggle('hidden', !hasLists);
 
-  if (hasLists && !fileInfo.textContent.includes('saved')) {
+  if (hasLists && !fileInfo.textContent.includes('gespeichert')) {
     const activeCount = state.priceLists.filter(x => x.enabled).length;
-    fileInfo.textContent = `${state.priceLists.length} price list(s) saved in the browser · ${activeCount} active.`;
+    fileInfo.textContent = `${state.priceLists.length} Preisliste(n) im Browser gespeichert · ${activeCount} aktiv.`;
   }
 }
 
 function renderSavedLists() {
   if (!state.priceLists.length) {
-    savedLists.innerHTML = '<div class="empty-box">No price lists saved yet.</div>';
+    savedLists.innerHTML = '<div class="empty-box">Noch keine Preislisten gespeichert.</div>';
     return;
   }
 
@@ -604,47 +411,21 @@ function renderSavedLists() {
       <label class="saved-list-main">
         <input type="checkbox" data-enable-list="${escapeAttr(list.id)}" ${list.enabled ? 'checked' : ''} />
         <span>
-          <strong>${escapeHtml(list.displayName || list.fileName)}</strong>
-          <small>${escapeHtml(list.sheetName)} · ${list.items.length.toLocaleString('en-GB')} items · ${Object.keys(list.images || {}).length ? `${Object.keys(list.images || {}).length} images` : 'Images available after re-import'}</small>
+          <strong>${escapeHtml(list.fileName)}</strong>
+          <small>${escapeHtml(list.sheetName)} · ${list.items.length.toLocaleString('de-DE')} Artikel</small>
         </span>
       </label>
       <div class="button-row">
-        <button class="mini-btn" data-edit-list="${escapeAttr(list.id)}">Mapping</button>
-        <button class="mini-btn danger-text" data-remove-list="${escapeAttr(list.id)}">Delete</button>
+        <button class="mini-btn" data-edit-list="${escapeAttr(list.id)}">Zuordnung</button>
+        <button class="mini-btn danger-text" data-remove-list="${escapeAttr(list.id)}">Löschen</button>
       </div>
     </div>
   `).join('');
 }
 
-function renderSheetToggles() {
-  if (!sheetTogglePanel) return;
-  if (!state.priceLists.length) {
-    sheetTogglePanel.innerHTML = '';
-    return;
-  }
-
-  const preferredOrder = [
-    'HOFMANN 2026', 'OEM', 'Wheel Aligners Accessories',
-    'Wheel Balancers Accessories', 'Tyre Changers Accessories',
-    'Lifts Accessories', 'Induction Heater Accessories'
-  ];
-  const rank = name => {
-    const i = preferredOrder.findIndex(x => normalize(x) === normalize(name));
-    return i === -1 ? 999 : i;
-  };
-  const lists = [...state.priceLists].sort((a,b) => rank(a.sheetName) - rank(b.sheetName) || a.sheetName.localeCompare(b.sheetName));
-
-  sheetTogglePanel.innerHTML = lists.map(list => `
-    <label class="sheet-toggle ${list.enabled ? 'active' : ''}">
-      <input type="checkbox" data-sheet-toggle="${escapeAttr(list.id)}" ${list.enabled ? 'checked' : ''} />
-      <span><strong>${escapeHtml(list.sheetName)}</strong><small>${list.items.length.toLocaleString('en-GB')} Artikel</small></span>
-    </label>
-  `).join('');
-}
-
 function renderPriceListSelector() {
   priceListSelect.innerHTML = state.priceLists.map(list =>
-    `<option value="${escapeAttr(list.id)}">${escapeHtml(list.displayName || list.fileName)}</option>`
+    `<option value="${escapeAttr(list.id)}">${escapeHtml(list.fileName)}</option>`
   ).join('');
   if (state.activeListId && state.priceLists.some(x => x.id === state.activeListId)) {
     priceListSelect.value = state.activeListId;
@@ -666,18 +447,18 @@ function renderMapping() {
   const list = getActiveList();
   if (!list) return;
 
-  if (list.workbook && !list.lockToSheet) {
+  if (list.workbook) {
     sheetSelect.disabled = false;
     sheetSelect.innerHTML = list.workbook.SheetNames.map(name =>
       `<option value="${escapeAttr(name)}">${escapeHtml(name)}</option>`
     ).join('');
   } else {
     sheetSelect.disabled = true;
-    sheetSelect.innerHTML = `<option value="${escapeAttr(list.sheetName)}">${escapeHtml(list.sheetName)} (saved)</option>`;
+    sheetSelect.innerHTML = `<option value="${escapeAttr(list.sheetName)}">${escapeHtml(list.sheetName)} (gespeichert)</option>`;
   }
   sheetSelect.value = list.sheetName;
 
-  const selects = [articleCol, modelCol, listPriceCol, priceListDiscountCol, netPriceCol, familyCol, colorCol];
+  const selects = [articleCol, modelCol, listPriceCol, priceListDiscountCol, netPriceCol, familyCol];
   for (const select of selects) {
     select.innerHTML = '<option value="">— nicht verwenden —</option>' +
       list.headers.map(h => `<option value="${escapeAttr(h)}">${escapeHtml(h)}</option>`).join('');
@@ -689,25 +470,18 @@ function renderMapping() {
   priceListDiscountCol.value = list.mapping.priceListDiscount || '';
   netPriceCol.value = list.mapping.netPrice || '';
   familyCol.value = list.mapping.family || '';
-  colorCol.value = list.mapping.color || '';
 }
 
 async function switchActiveSheet(name) {
   const list = getActiveList();
   if (!list?.workbook || !name || name === list.sheetName) return;
 
-  const extractedImages = list.sourceData
-    ? await extractImagesForSheet(list.sourceData, name)
-    : { images: {}, rowToImageId: {} };
   const replacement = buildPriceListFromSheet({
     id: list.id,
     fileName: list.fileName,
     fileSize: list.fileSize,
     lastModified: list.lastModified,
     workbook: list.workbook,
-    sourceData: list.sourceData || null,
-    images: extractedImages.images,
-    imageRowMap: extractedImages.rowToImageId,
     enabled: list.enabled
   }, name);
 
@@ -728,12 +502,11 @@ async function applyMapping() {
     listPrice: listPriceCol.value,
     priceListDiscount: priceListDiscountCol.value,
     netPrice: netPriceCol.value,
-    family: familyCol.value,
-    color: colorCol.value
+    family: familyCol.value
   };
 
   if (!mapping.article && !mapping.model) {
-    alert('Please select at least Part No. or Model.');
+    alert('Bitte mindestens Artikelnummer oder Modell auswählen.');
     return;
   }
 
@@ -742,7 +515,7 @@ async function applyMapping() {
   list.savedAt = new Date().toISOString();
   state.offer = state.offer.filter(x => x.listId !== list.id);
   await savePriceList(list);
-  fileInfo.textContent = `Mapping for “${list.fileName}” saved.`;
+  fileInfo.textContent = `Zuordnung für „${list.fileName}“ gespeichert.`;
   refreshAll();
 }
 
@@ -753,13 +526,8 @@ function allSearchItems() {
 function getSearchMatches() {
   const q = normalize(searchInput.value);
   const tokens = q.split(/\s+/).filter(Boolean);
-  let items = allSearchItems();
-  if (state.searchSettings.filtersEnabled) {
-    if (state.searchSettings.source) items = items.filter(item => item.listId === state.searchSettings.source);
-    if (state.searchSettings.family) items = items.filter(item => normalize(item.family) === normalize(state.searchSettings.family));
-    if (state.searchSettings.color) items = items.filter(item => normalize(item.color) === normalize(state.searchSettings.color));
-  }
-  if (!tokens.length) return items;
+  const items = allSearchItems();
+  if (!tokens.length) return items.slice(0, 100);
 
   return items
     .filter(item => tokens.every(t => item.searchText.includes(t)))
@@ -783,24 +551,21 @@ function getSearchMatches() {
 function renderResults() {
   if (!state.priceLists.length) return;
   const matches = getSearchMatches();
-  resultCount.textContent = `${matches.length} results · all shown`;
+  const limited = matches.slice(0, 300);
+  resultCount.textContent = `${matches.length} Treffer${matches.length > limited.length ? ` · ${limited.length} angezeigt` : ''}`;
 
-  if (!matches.length) {
-    resultsBody.innerHTML = '<tr><td colspan="11" class="empty">Keine passenden Artikel gefunden.</td></tr>';
+  if (!limited.length) {
+    resultsBody.innerHTML = '<tr><td colspan="8" class="empty">Keine passenden Artikel gefunden.</td></tr>';
     return;
   }
 
-  resultsBody.innerHTML = matches.map(item => {
+  resultsBody.innerHTML = limited.map(item => {
     const selected = state.offer.some(o => o.uid === item.uid);
-    const image = getItemImage(item);
     return `<tr>
       <td><input class="result-check" type="checkbox" data-offer-uid="${escapeAttr(item.uid)}" ${selected ? 'checked' : ''} /></td>
-      <td class="image-cell">${renderProductImage(image, item, false)}</td>
-      <td><span class="source-pill">${escapeHtml(item.sourceSheet || shortFileName(item.source))}</span></td>
+      <td><span class="source-pill">${escapeHtml(shortFileName(item.source))}</span></td>
       <td>${escapeHtml(item.article)}</td>
       <td>${escapeHtml(item.model)}</td>
-      <td>${renderRalText(item.color)}</td>
-      <td class="ral-color-cell">${renderRalSwatches(item.color)}</td>
       <td>${escapeHtml(item.family)}</td>
       <td class="num">${formatNumber(item.listPrice)}</td>
       <td class="num">${formatPercent(item.priceListDiscount)}</td>
@@ -814,7 +579,7 @@ function quickAddTopResult() {
   if (!normalize(searchInput.value)) return;
   const item = matches[0];
   if (!item) {
-    resultCount.textContent = 'No results';
+    resultCount.textContent = 'Kein Treffer';
     return;
   }
 
@@ -844,7 +609,7 @@ function toggleOffer(uid, checked) {
 
 function renderOffer() {
   if (!state.offer.length) {
-    offerBody.innerHTML = '<tr><td colspan="14" class="empty">No items selected yet.</td></tr>';
+    offerBody.innerHTML = '<tr><td colspan="11" class="empty">Noch keine Positionen ausgewählt.</td></tr>';
     grandTotal.textContent = money(0);
     return;
   }
@@ -852,15 +617,11 @@ function renderOffer() {
   offerBody.innerHTML = state.offer.map((item, idx) => {
     const finalUnitPrice = item.netPrice * (1 - item.extraDiscount / 100);
     const total = finalUnitPrice * item.qty;
-    const image = getItemImage(item);
 
     return `<tr>
       <td>${idx + 1}</td>
-      <td class="image-cell">${renderProductImage(image, item, true)}</td>
       <td>${escapeHtml(item.article)}</td>
       <td>${escapeHtml(item.model)}</td>
-      <td>${renderRalText(item.color)}</td>
-      <td class="ral-color-cell">${renderRalSwatches(item.color)}</td>
       <td><input class="small-input qty-input" type="number" min="1" step="1" value="${item.qty}" data-offer-uid="${escapeAttr(item.uid)}" data-offer-field="qty" /></td>
       <td class="num">${formatNumber(item.listPrice)}</td>
       <td class="num">${formatPercent(item.priceListDiscount)}</td>
@@ -895,7 +656,7 @@ function removeOffer(uid) {
 function renderExportOptions() {
   if (!exportOptionsGrid) return;
   const order = [
-    'position', 'article', 'model', 'color', 'family', 'qty', 'listPrice',
+    'position', 'article', 'model', 'family', 'qty', 'listPrice',
     'priceListDiscount', 'netPrice', 'extraDiscount', 'finalUnitPrice',
     'total', 'source'
   ];
@@ -912,7 +673,7 @@ function loadExportOptions() {
     const saved = JSON.parse(localStorage.getItem(EXPORT_OPTIONS_KEY) || '{}');
     return { ...DEFAULT_EXPORT_OPTIONS, ...saved };
   } catch (err) {
-    console.warn('Export options could not be loaded.', err);
+    console.warn('Export-Optionen konnten nicht geladen werden.', err);
     return { ...DEFAULT_EXPORT_OPTIONS };
   }
 }
@@ -921,7 +682,7 @@ function saveExportOptions() {
   try {
     localStorage.setItem(EXPORT_OPTIONS_KEY, JSON.stringify(state.exportOptions));
   } catch (err) {
-    console.warn('Export options could not be saved.', err);
+    console.warn('Export-Optionen konnten nicht gespeichert werden.', err);
   }
 }
 
@@ -939,18 +700,17 @@ function excelColumnName(index) {
 function getSelectedExportFields(currency) {
   const definitions = [
     { key: 'position', header: 'Pos.', width: 7 },
-    { key: 'article', header: 'Part No.', width: 24 },
-    { key: 'model', header: 'Model', width: 34 },
-    { key: 'color', header: 'Colour / RAL', width: 18 },
+    { key: 'article', header: 'Artikelnummer', width: 24 },
+    { key: 'model', header: 'Modell', width: 34 },
     { key: 'family', header: 'Family / Gruppe', width: 24 },
-    { key: 'qty', header: 'Qty', width: 10 },
+    { key: 'qty', header: 'Menge', width: 10 },
     { key: 'listPrice', header: `List Price ${currency}`, width: 18, numberFormat: '#,##0.00' },
     { key: 'priceListDiscount', header: 'Discount', width: 14, numberFormat: '0.00%' },
     { key: 'netPrice', header: `Net Price ${currency}`, width: 18, numberFormat: '#,##0.00' },
-    { key: 'extraDiscount', header: 'Second Discount', width: 18, numberFormat: '0.00%' },
-    { key: 'finalUnitPrice', header: `Quote/Unit ${currency}`, width: 20, numberFormat: '#,##0.00' },
+    { key: 'extraDiscount', header: 'Zusatzrabatt', width: 17, numberFormat: '0.00%' },
+    { key: 'finalUnitPrice', header: `Angebot/Stk. ${currency}`, width: 20, numberFormat: '#,##0.00' },
     { key: 'total', header: `Gesamt ${currency}`, width: 18, numberFormat: '#,##0.00' },
-    { key: 'source', header: 'Price List / Source', width: 24 }
+    { key: 'source', header: 'Preisliste / Quelle', width: 24 }
   ];
   return definitions.filter(field => state.exportOptions[field.key]);
 }
@@ -976,7 +736,7 @@ function buildFinalUnitFormula(item, rowNum, colByKey) {
 
 function exportOffer() {
   if (!state.offer.length) {
-    alert('Please select at least one item first.');
+    alert('Bitte zuerst mindestens eine Position auswählen.');
     return;
   }
 
@@ -985,7 +745,7 @@ function exportOffer() {
   const currency = el('currency').value;
   const fields = getSelectedExportFields(currency);
   if (!fields.length) {
-    alert('Please enable at least one column in the Excel export options.');
+    alert('Bitte in den Optionen mindestens eine Spalte für die Excel-Übertragung aktivieren.');
     return;
   }
 
@@ -1006,13 +766,13 @@ function exportOffer() {
   const metaRightValueIndex = metaRightLabelIndex + 1;
   const metaRow3 = Array(sheetColumnCount).fill('');
   const metaRow4 = Array(sheetColumnCount).fill('');
-  metaRow3[0] = 'Customer';
+  metaRow3[0] = 'Kunde';
   metaRow3[1] = customer;
-  metaRow3[metaRightLabelIndex] = 'Quotation No.';
+  metaRow3[metaRightLabelIndex] = 'Angebotsnummer';
   metaRow3[metaRightValueIndex] = offerNo;
   metaRow4[0] = 'Datum';
   metaRow4[1] = dateText;
-  metaRow4[metaRightLabelIndex] = 'Currency';
+  metaRow4[metaRightLabelIndex] = 'Währung';
   metaRow4[metaRightValueIndex] = currency;
 
   const aoa = [
@@ -1034,7 +794,6 @@ function exportOffer() {
         case 'position': return idx + 1;
         case 'article': return item.article;
         case 'model': return item.model;
-        case 'color': return item.color;
         case 'family': return item.family;
         case 'qty': return item.qty;
         case 'listPrice': return round2(item.listPrice);
@@ -1111,21 +870,6 @@ function exportOffer() {
     });
   }
 
-  if (colByKey.color) {
-    const colorColIndex = XLSX.utils.decode_col(colByKey.color);
-    state.offer.forEach((item, idx) => {
-      const hex = ralPrimaryHex(item.color);
-      if (!hex) return;
-      const addr = XLSX.utils.encode_cell({ r: firstDataRow - 1 + idx, c: colorColIndex });
-      if (!ws[addr]) return;
-      ws[addr].s = {
-        ...bodyStyle,
-        fill: { fgColor: { rgb: hex.replace('#', '').toUpperCase() } },
-        font: { color: { rgb: isDarkHex(hex) ? 'FFFFFF' : '111827' }, bold: true }
-      };
-    });
-  }
-
   if (totalFieldIndex >= 0) {
     const valueColIndex = totalFieldIndex > 0 ? totalFieldIndex : 1;
     const labelColIndex = totalFieldIndex > 0 ? totalFieldIndex - 1 : 0;
@@ -1143,17 +887,17 @@ function exportOffer() {
   });
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Quotation');
+  XLSX.utils.book_append_sheet(wb, ws, 'Angebot');
   wb.Props = {
-    Title: offerNo ? `Quotation ${offerNo}` : 'Quotation',
-    Subject: customer ? `Quotation for ${customer}` : 'Quotation',
-    Author: 'Price List Analyzer',
+    Title: offerNo ? `Angebot ${offerNo}` : 'Angebot',
+    Subject: customer ? `Angebot für ${customer}` : 'Angebot',
+    Author: 'Preislisten-Analyzer',
     CreatedDate: today
   };
 
   const safeCustomer = customer ? `_${safeFile(customer)}` : '';
   const safeNo = offerNo ? `_${safeFile(offerNo)}` : '';
-  XLSX.writeFile(wb, `Quotation${safeCustomer}${safeNo}.xlsx`);
+  XLSX.writeFile(wb, `Angebot${safeCustomer}${safeNo}.xlsx`);
 }
 
 
@@ -1202,10 +946,10 @@ function saveDraft(showMessage = false) {
   try {
     localStorage.setItem(DRAFT_KEY, JSON.stringify(getDraftPayload()));
     updateDraftStatus();
-    if (showMessage) draftStatus.textContent = 'Draft saved';
+    if (showMessage) draftStatus.textContent = 'Entwurf gespeichert';
   } catch (err) {
-    console.warn('Draft could not be saved.', err);
-    if (showMessage) alert('The draft could not be saved in the browser.');
+    console.warn('Entwurf konnte nicht gespeichert werden.', err);
+    if (showMessage) alert('Der Entwurf konnte im Browser nicht gespeichert werden.');
   }
 }
 
@@ -1217,13 +961,10 @@ function loadDraft() {
   let draft;
   try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (_) { draft = null; }
   if (!draft) {
-    alert('There is no saved quotation draft yet.');
+    alert('Es ist noch kein gespeicherter Angebotsentwurf vorhanden.');
     return;
   }
-  state.offer = Array.isArray(draft.offer) ? draft.offer.map(item => {
-    const current = allSearchItems().find(candidate => candidate.uid === item.uid);
-    return current ? { ...current, ...item, color: item.color || current.color, imageId: item.imageId || current.imageId } : { ...item };
-  }) : [];
+  state.offer = Array.isArray(draft.offer) ? draft.offer.map(item => ({ ...item })) : [];
   el('customerName').value = draft.customer || '';
   el('offerNumber').value = draft.offerNumber || '';
   el('offerDate').value = draft.offerDate || localDateInputValue(new Date());
@@ -1235,7 +976,7 @@ function loadDraft() {
 
 function newOffer() {
   const hasContent = state.offer.length || el('customerName').value.trim() || el('offerNumber').value.trim();
-  if (hasContent && !confirm('Clear the current quotation and start a new one?')) return;
+  if (hasContent && !confirm('Aktuelles Angebot leeren und ein neues Angebot beginnen?')) return;
   state.offer = [];
   el('customerName').value = '';
   el('offerDate').value = localDateInputValue(new Date());
@@ -1251,13 +992,13 @@ function updateDraftStatus() {
   let draft;
   try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (_) { draft = null; }
   if (!draft?.savedAt) {
-    draftStatus.textContent = 'No draft saved yet';
+    draftStatus.textContent = 'Noch kein Entwurf gespeichert';
     return;
   }
   const saved = new Date(draft.savedAt);
   const time = saved.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   const count = Array.isArray(draft.offer) ? draft.offer.length : 0;
-  draftStatus.textContent = `Auto-saved · ${time} · ${count} items`;
+  draftStatus.textContent = `Automatisch gespeichert · ${time} · ${count} Pos.`;
 }
 
 function localDateInputValue(date) {
@@ -1276,257 +1017,14 @@ function borderStyle() {
   };
 }
 
-
-function loadSearchSettings() {
-  const defaults = { filtersEnabled: true, source: '', family: '', color: '' };
-  try {
-    return { ...defaults, ...JSON.parse(localStorage.getItem(SEARCH_SETTINGS_KEY) || '{}') };
-  } catch (_) {
-    return defaults;
-  }
-}
-
-function saveSearchSettings() {
-  try { localStorage.setItem(SEARCH_SETTINGS_KEY, JSON.stringify(state.searchSettings)); } catch (_) {}
-}
-
-function renderFilters() {
-  if (!filterPanel) return;
-  filtersEnabledToggle.checked = state.searchSettings.filtersEnabled !== false;
-  filterPanel.classList.toggle('filters-off', !filtersEnabledToggle.checked);
-
-  const enabledLists = state.priceLists.filter(list => list.enabled);
-  const sourceOptions = enabledLists.map(list => ({ value: list.id, label: shortFileName(list.fileName) }));
-  sourceFilter.dataset.settingKey = 'source';
-  familyFilter.dataset.settingKey = 'family';
-  colorFilter.dataset.settingKey = 'color';
-  fillFilterSelect(sourceFilter, sourceOptions, 'All price lists', state.searchSettings.source);
-
-  const baseItems = allSearchItems().filter(item => !state.searchSettings.source || item.listId === state.searchSettings.source);
-  const families = uniqueSorted(baseItems.map(item => item.family).filter(Boolean)).map(v => ({ value: v, label: v }));
-  const colors = uniqueSorted(baseItems.map(item => item.color).filter(Boolean)).map(v => ({ value: v, label: v }));
-  fillFilterSelect(familyFilter, families, 'All families', state.searchSettings.family);
-  fillFilterSelect(colorFilter, colors, 'All colours', state.searchSettings.color);
-
-}
-
-function fillFilterSelect(select, options, emptyLabel, currentValue) {
-  const valid = options.some(option => option.value === currentValue);
-  if (currentValue && !valid) {
-    const key = select.dataset.settingKey;
-    if (key) state.searchSettings[key] = '';
-    currentValue = '';
-  }
-  select.innerHTML = `<option value="">${escapeHtml(emptyLabel)}</option>` + options.map(option =>
-    `<option value="${escapeAttr(option.value)}">${escapeHtml(option.label)}</option>`
-  ).join('');
-  select.value = currentValue || '';
-}
-
-function clearFilters() {
-  state.searchSettings.source = '';
-  state.searchSettings.family = '';
-  state.searchSettings.color = '';
-  saveSearchSettings();
-  renderFilters();
-  renderResults();
-}
-
-function uniqueSorted(values) {
-  return Array.from(new Set(values.map(v => String(v).trim()).filter(Boolean)))
-    .sort((a, b) => a.localeCompare(b, 'de', { numeric: true, sensitivity: 'base' }));
-}
-
-function getItemImage(item) {
-  if (!item?.imageId) return '';
-  const list = state.priceLists.find(x => x.id === item.listId);
-  return list?.images?.[item.imageId] || '';
-}
-
-function renderProductImage(src, item, compact) {
-  if (!src) return `<span class="image-placeholder ${compact ? 'offer-placeholder' : ''}">no image</span>`;
-  const caption = [item.article, item.model].filter(Boolean).join(' · ');
-  return `<img class="product-thumb ${compact ? 'offer-thumb' : ''}" loading="lazy" src="${escapeAttr(src)}" alt="${escapeAttr(caption || 'Product image')}" data-image-preview="1" data-image-caption="${escapeAttr(caption)}" />`;
-}
-
-function openImagePreview(src, caption) {
-  if (!src || !imageDialog) return;
-  imageDialogImg.src = src;
-  imageDialogCaption.textContent = caption || 'Product image';
-  imageDialog.showModal();
-}
-
-const RAL_HEX = {
-  '1028': '#FF9B00',
-  '3000': '#AF2B1E',
-  '5013': '#193153',
-  '5015': '#2874B2',
-  '7004': '#969992',
-  '7015': '#51565C',
-  '7016': '#383E42',
-  '7035': '#CBD0CC',
-  '7040': '#9DA3A6',
-  '9005': '#0A0A0D',
-  '9006': '#A5A5A5',
-  '9007': '#8F8F8C'
-};
-
-function ralCodes(text) {
-  return Array.from(String(text || '').matchAll(/RAL\s*(\d{4})/gi), match => match[1]);
-}
-
-function ralPrimaryHex(text) {
-  const code = ralCodes(text)[0];
-  return code ? (RAL_HEX[code] || '') : '';
-}
-
-function normalizeRalLabel(text) {
-  const raw = String(text ?? '').trim();
-  if (!raw) return '';
-  const codes = Array.from(raw.matchAll(/(?:RAL\s*)?(\d{4})/gi), m => m[1]);
-  if (codes.length) return Array.from(new Set(codes)).map(code => `RAL ${code}`).join(' / ');
-  return raw.toUpperCase().startsWith('RAL') ? raw.replace(/^RAL\s*/i, 'RAL ') : raw;
-}
-
-function renderRalText(text) {
-  const value = normalizeRalLabel(text);
-  return value ? `<span class="ral-label">${escapeHtml(value)}</span>` : '<span class="muted-dash">—</span>';
-}
-
-function renderRalSwatches(text) {
-  const codes = ralCodes(normalizeRalLabel(text));
-  if (!codes.length) return '<span class="muted-dash">—</span>';
-  return `<span class="ral-swatches ral-swatches-large">${codes.map(code => {
-    const hex = RAL_HEX[code];
-    return hex
-      ? `<span class="ral-swatch ral-swatch-large" style="background:${hex}" title="RAL ${code} · screen approximation"></span>`
-      : `<span class="ral-swatch ral-swatch-large ral-unknown" title="RAL ${code}">?</span>`;
-  }).join('')}</span>`;
-}
-
-function renderRal(text) {
-  return `<span class="ral-display">${renderRalSwatches(text)}${renderRalText(text)}</span>`;
-}
-
-function isDarkHex(hex) {
-  const clean = String(hex || '').replace('#', '');
-  if (!/^[0-9a-f]{6}$/i.test(clean)) return false;
-  const r = parseInt(clean.slice(0, 2), 16);
-  const g = parseInt(clean.slice(2, 4), 16);
-  const b = parseInt(clean.slice(4, 6), 16);
-  return (r * 299 + g * 587 + b * 114) / 1000 < 145;
-}
-
-async function extractImagesForSheet(arrayBuffer, sheetName) {
-  const empty = { images: {}, rowToImageId: {} };
-  if (!arrayBuffer || typeof JSZip === 'undefined') return empty;
-  try {
-    const zip = await JSZip.loadAsync(arrayBuffer);
-    const parser = new DOMParser();
-    const readXml = async path => {
-      const file = zip.file(path);
-      if (!file) return null;
-      return parser.parseFromString(await file.async('text'), 'application/xml');
-    };
-
-    const workbookDoc = await readXml('xl/workbook.xml');
-    const workbookRelsDoc = await readXml('xl/_rels/workbook.xml.rels');
-    if (!workbookDoc || !workbookRelsDoc) return empty;
-
-    const sheetNode = Array.from(workbookDoc.getElementsByTagNameNS('*', 'sheet'))
-      .find(node => node.getAttribute('name') === sheetName);
-    if (!sheetNode) return empty;
-    const sheetRelId = sheetNode.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id') || sheetNode.getAttribute('r:id');
-    const workbookRel = Array.from(workbookRelsDoc.getElementsByTagNameNS('*', 'Relationship'))
-      .find(node => node.getAttribute('Id') === sheetRelId);
-    if (!workbookRel) return empty;
-    const sheetPath = resolveZipPath('xl/workbook.xml', workbookRel.getAttribute('Target'));
-    const sheetDoc = await readXml(sheetPath);
-    if (!sheetDoc) return empty;
-
-    const cellsWithRichValue = Array.from(sheetDoc.getElementsByTagNameNS('*', 'c'))
-      .filter(cell => cell.hasAttribute('vm'));
-    if (!cellsWithRichValue.length) return empty;
-
-    const metadataDoc = await readXml('xl/metadata.xml');
-    const richValuesDoc = await readXml('xl/richData/rdrichvalue.xml');
-    const richValueRelDoc = await readXml('xl/richData/richValueRel.xml');
-    const richValueRelsDoc = await readXml('xl/richData/_rels/richValueRel.xml.rels');
-    if (!metadataDoc || !richValuesDoc || !richValueRelDoc || !richValueRelsDoc) return empty;
-
-    const futureMetadata = Array.from(metadataDoc.getElementsByTagNameNS('*', 'futureMetadata'))
-      .find(node => node.getAttribute('name') === 'XLRICHVALUE');
-    if (!futureMetadata) return empty;
-    const metadataBlocks = Array.from(futureMetadata.getElementsByTagNameNS('*', 'bk'));
-    const richValues = Array.from(richValuesDoc.getElementsByTagNameNS('*', 'rv'));
-    const richRelations = Array.from(richValueRelDoc.getElementsByTagNameNS('*', 'rel'));
-    const relTargetById = Object.fromEntries(Array.from(richValueRelsDoc.getElementsByTagNameNS('*', 'Relationship'))
-      .map(node => [node.getAttribute('Id'), node.getAttribute('Target')]));
-
-    const images = {};
-    const rowToImageId = {};
-    const imageCacheByPath = {};
-
-    for (const cell of cellsWithRichValue) {
-      const address = cell.getAttribute('r') || '';
-      const rowMatch = address.match(/(\d+)$/);
-      const vm = Number(cell.getAttribute('vm'));
-      if (!rowMatch || !vm || !metadataBlocks[vm - 1]) continue;
-
-      const rvb = metadataBlocks[vm - 1].getElementsByTagNameNS('*', 'rvb')[0];
-      const richIndex = Number(rvb?.getAttribute('i'));
-      const richValue = richValues[richIndex];
-      if (!richValue) continue;
-      const values = Array.from(richValue.getElementsByTagNameNS('*', 'v'));
-      const localImageIndex = Number(values[0]?.textContent);
-      const relation = richRelations[localImageIndex];
-      if (!relation) continue;
-      const relationId = relation.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id') || relation.getAttribute('r:id');
-      const target = relTargetById[relationId];
-      if (!target) continue;
-      const mediaPath = resolveZipPath('xl/richData/richValueRel.xml', target);
-      const mediaFile = zip.file(mediaPath);
-      if (!mediaFile) continue;
-
-      let dataUrl = imageCacheByPath[mediaPath];
-      if (!dataUrl) {
-        const ext = mediaPath.split('.').pop().toLowerCase();
-        const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'gif' ? 'image/gif' : ext === 'webp' ? 'image/webp' : 'image/png';
-        dataUrl = `data:${mime};base64,${await mediaFile.async('base64')}`;
-        imageCacheByPath[mediaPath] = dataUrl;
-      }
-      const imageId = mediaPath;
-      images[imageId] = dataUrl;
-      rowToImageId[Number(rowMatch[1])] = imageId;
-    }
-    return { images, rowToImageId };
-  } catch (err) {
-    console.warn('Product images could not be read from this file.', err);
-    return empty;
-  }
-}
-
-function resolveZipPath(baseFile, target) {
-  if (!target) return '';
-  if (target.startsWith('/')) return target.replace(/^\/+/, '');
-  const parts = baseFile.split('/');
-  parts.pop();
-  for (const segment of target.split('/')) {
-    if (!segment || segment === '.') continue;
-    if (segment === '..') parts.pop();
-    else parts.push(segment);
-  }
-  return parts.join('/');
-}
-
 async function clearAllLists() {
   if (!state.priceLists.length) return;
-  if (!confirm('Delete all locally saved price lists?')) return;
+  if (!confirm('Alle lokal gespeicherten Preislisten löschen?')) return;
   await clearPriceListStore();
   state.priceLists = [];
   state.activeListId = null;
   state.offer = [];
-  fileInfo.textContent = 'All saved price lists were deleted.';
+  fileInfo.textContent = 'Alle gespeicherten Preislisten wurden gelöscht.';
   refreshAll();
 }
 
@@ -1535,7 +1033,7 @@ function makeListId(file) {
 }
 
 function serializeList(list) {
-  const { workbook, sourceData, ...plain } = list;
+  const { workbook, ...plain } = list;
   return plain;
 }
 
@@ -1575,7 +1073,7 @@ async function savePriceList(list) {
     db.close();
   } catch (err) {
     console.error(err);
-    alert('The price list could not be saved permanently in the browser. Local storage may be full.');
+    alert('Die Preisliste konnte nicht dauerhaft im Browser gespeichert werden. Möglicherweise ist der lokale Speicher voll.');
   }
 }
 
