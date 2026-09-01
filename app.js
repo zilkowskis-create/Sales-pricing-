@@ -429,7 +429,7 @@ function mapItems(list) {
     const calculatedNetPrice = listPrice * (1 - priceListDiscount / 100);
     const netPrice = hasNetPrice ? mappedNetPrice : calculatedNetPrice;
     const family = m.family ? String(row[m.family] ?? '').trim() : '';
-    const color = m.color ? String(row[m.color] ?? '').trim() : '';
+    const color = m.color ? normalizeRalLabel(row[m.color]) : '';
     const excelRow = Number(row.__excelRow) || (index + 1);
     let imageId = list.imageRowMap?.[excelRow] || '';
 
@@ -627,7 +627,7 @@ function getSearchMatches() {
     if (state.searchSettings.family) items = items.filter(item => normalize(item.family) === normalize(state.searchSettings.family));
     if (state.searchSettings.color) items = items.filter(item => normalize(item.color) === normalize(state.searchSettings.color));
   }
-  if (!tokens.length) return items.slice(0, 100);
+  if (!tokens.length) return items;
 
   return items
     .filter(item => tokens.every(t => item.searchText.includes(t)))
@@ -651,15 +651,14 @@ function getSearchMatches() {
 function renderResults() {
   if (!state.priceLists.length) return;
   const matches = getSearchMatches();
-  const limited = matches.slice(0, 300);
-  resultCount.textContent = `${matches.length} Treffer${matches.length > limited.length ? ` · ${limited.length} angezeigt` : ''}`;
+  resultCount.textContent = `${matches.length} Treffer · alle angezeigt`;
 
-  if (!limited.length) {
-    resultsBody.innerHTML = '<tr><td colspan="10" class="empty">Keine passenden Artikel gefunden.</td></tr>';
+  if (!matches.length) {
+    resultsBody.innerHTML = '<tr><td colspan="11" class="empty">Keine passenden Artikel gefunden.</td></tr>';
     return;
   }
 
-  resultsBody.innerHTML = limited.map(item => {
+  resultsBody.innerHTML = matches.map(item => {
     const selected = state.offer.some(o => o.uid === item.uid);
     const image = getItemImage(item);
     return `<tr>
@@ -668,7 +667,8 @@ function renderResults() {
       <td><span class="source-pill">${escapeHtml(shortFileName(item.source))}</span></td>
       <td>${escapeHtml(item.article)}</td>
       <td>${escapeHtml(item.model)}</td>
-      <td>${renderRal(item.color)}</td>
+      <td>${renderRalText(item.color)}</td>
+      <td class="ral-color-cell">${renderRalSwatches(item.color)}</td>
       <td>${escapeHtml(item.family)}</td>
       <td class="num">${formatNumber(item.listPrice)}</td>
       <td class="num">${formatPercent(item.priceListDiscount)}</td>
@@ -712,7 +712,7 @@ function toggleOffer(uid, checked) {
 
 function renderOffer() {
   if (!state.offer.length) {
-    offerBody.innerHTML = '<tr><td colspan="13" class="empty">Noch keine Positionen ausgewählt.</td></tr>';
+    offerBody.innerHTML = '<tr><td colspan="14" class="empty">Noch keine Positionen ausgewählt.</td></tr>';
     grandTotal.textContent = money(0);
     return;
   }
@@ -727,7 +727,8 @@ function renderOffer() {
       <td class="image-cell">${renderProductImage(image, item, true)}</td>
       <td>${escapeHtml(item.article)}</td>
       <td>${escapeHtml(item.model)}</td>
-      <td>${renderRal(item.color)}</td>
+      <td>${renderRalText(item.color)}</td>
+      <td class="ral-color-cell">${renderRalSwatches(item.color)}</td>
       <td><input class="small-input qty-input" type="number" min="1" step="1" value="${item.qty}" data-offer-uid="${escapeAttr(item.uid)}" data-offer-field="qty" /></td>
       <td class="num">${formatNumber(item.listPrice)}</td>
       <td class="num">${formatPercent(item.priceListDiscount)}</td>
@@ -1247,15 +1248,32 @@ function ralPrimaryHex(text) {
   return code ? (RAL_HEX[code] || '') : '';
 }
 
-function renderRal(text) {
-  const value = String(text || '').trim();
-  if (!value) return '';
-  const codes = ralCodes(value);
-  const swatches = codes.map(code => {
+function normalizeRalLabel(text) {
+  const raw = String(text ?? '').trim();
+  if (!raw) return '';
+  const codes = Array.from(raw.matchAll(/(?:RAL\s*)?(\d{4})/gi), m => m[1]);
+  if (codes.length) return Array.from(new Set(codes)).map(code => `RAL ${code}`).join(' / ');
+  return raw.toUpperCase().startsWith('RAL') ? raw.replace(/^RAL\s*/i, 'RAL ') : raw;
+}
+
+function renderRalText(text) {
+  const value = normalizeRalLabel(text);
+  return value ? `<span class="ral-label">${escapeHtml(value)}</span>` : '<span class="muted-dash">—</span>';
+}
+
+function renderRalSwatches(text) {
+  const codes = ralCodes(normalizeRalLabel(text));
+  if (!codes.length) return '<span class="muted-dash">—</span>';
+  return `<span class="ral-swatches ral-swatches-large">${codes.map(code => {
     const hex = RAL_HEX[code];
-    return hex ? `<span class="ral-swatch" style="background:${hex}" title="RAL ${code} · Bildschirm-Näherung"></span>` : '';
-  }).join('');
-  return `<span class="ral-display"><span class="ral-swatches">${swatches}</span><span class="ral-text">${escapeHtml(value)}</span></span>`;
+    return hex
+      ? `<span class="ral-swatch ral-swatch-large" style="background:${hex}" title="RAL ${code} · Bildschirm-Näherung"></span>`
+      : `<span class="ral-swatch ral-swatch-large ral-unknown" title="RAL ${code}">?</span>`;
+  }).join('')}</span>`;
+}
+
+function renderRal(text) {
+  return `<span class="ral-display">${renderRalSwatches(text)}${renderRalText(text)}</span>`;
 }
 
 function isDarkHex(hex) {

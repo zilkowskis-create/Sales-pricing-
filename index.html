@@ -14,7 +14,7 @@
       <h1>Preislisten-Analyzer</h1>
       <p>Mehrere Preislisten durchsuchen und ausgewählte Positionen automatisch in ein Excel-Angebot übertragen.</p>
     </div>
-    <div class="badge">V8 · Bilder, RAL, Filter & Second Discount</div>
+    <div class="badge">V9 · vollständige Preisliste, RAL & Farbe</div>
   </header>
 
   <main class="container">
@@ -85,7 +85,7 @@
           <button id="clearFiltersBtn" class="mini-btn" type="button">Filter zurücksetzen</button>
         </div>
       </div>
-      <p class="color-note">RAL-Farbfelder sind eine Bildschirm-Näherung. Für die eindeutige Farbe gilt immer die angezeigte RAL-Nummer.</p>
+      <p class="color-note">RAL wird immer als „RAL xxxx“ angezeigt. Die zusätzliche Farbfläche ist eine Bildschirm-Näherung; verbindlich ist die RAL-Nummer.</p>
 
       <div class="table-wrap">
         <table>
@@ -96,7 +96,8 @@
               <th>Preisliste</th>
               <th>Artikelnummer</th>
               <th>Modell</th>
-              <th>Farbe / RAL</th>
+              <th>RAL</th>
+              <th>Farbe</th>
               <th>Familie</th>
               <th class="num">Listenpreis</th>
               <th class="num">PL-Rabatt</th>
@@ -177,7 +178,8 @@
               <th>Bild</th>
               <th>Artikelnummer</th>
               <th>Modell</th>
-              <th>Farbe / RAL</th>
+              <th>RAL</th>
+              <th>Farbe</th>
               <th>Menge</th>
               <th class="num">Listenpreis</th>
               <th class="num">PL-Rabatt</th>
@@ -191,7 +193,7 @@
           <tbody id="offerBody"></tbody>
           <tfoot>
             <tr>
-              <td colspan="11" class="total-label">Gesamtsumme</td>
+              <td colspan="12" class="total-label">Gesamtsumme</td>
               <td id="grandTotal" class="num total-value">0,00 EUR</td>
               <td></td>
             </tr>

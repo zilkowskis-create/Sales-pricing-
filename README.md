@@ -1,4 +1,5 @@
-# Preislisten-Analyzer & Angebotsgenerator V8
+# Preislisten-Analyzer V9
+
 
 GitHub-Pages-Webapp zum Durchsuchen mehrerer Preislisten und schnellen Erstellen eines Excel-Angebots.
 
@@ -80,3 +81,10 @@ Bereits in V6 gespeicherte Preislisten enthalten die eingebetteten Bilddateien n
 ## Datenschutz / Speicherung
 
 Preislisten, Produktbilder, Exportoptionen, Suchfilter und Angebotsentwurf werden lokal im Browser gespeichert und nicht auf einen eigenen Server hochgeladen. Werden Browser-/Website-Daten gelöscht oder eine andere GitHub-Pages-Adresse verwendet, sind diese lokalen Daten nicht mehr verfügbar.
+
+
+## V9 Änderungen
+- Alle Positionen der aktiven Preislisten werden angezeigt; keine 100/300-Zeilen-Begrenzung mehr.
+- RAL und Farbe sind in der Oberfläche getrennte Spalten.
+- RAL-Werte werden auf das Format `RAL 5015` normalisiert.
+- Der Farbton wird zusätzlich als größeres Farbfeld dargestellt.

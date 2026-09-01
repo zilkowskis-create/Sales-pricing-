@@ -420,3 +420,11 @@ kbd {
 @media (max-width: 600px) {
   .search-filters { grid-template-columns: 1fr; }
 }
+
+/* V9: getrennte RAL- und Farbdarstellung */
+.ral-color-cell { min-width: 88px; }
+.ral-label { white-space: nowrap; font-weight: 700; }
+.ral-swatches-large { display: inline-flex; gap: 6px; align-items: center; }
+.ral-swatch-large { width: 42px; height: 24px; border-radius: 6px; border: 1px solid rgba(15,23,42,.28); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; }
+.ral-unknown { background: repeating-linear-gradient(45deg,#eee,#eee 5px,#ddd 5px,#ddd 10px); color:#555; }
+.muted-dash { color:#94a3b8; }
