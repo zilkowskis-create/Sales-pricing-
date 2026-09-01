@@ -14,7 +14,7 @@
       <h1>Price List Analyzer</h1>
       <p>Search multiple price lists and automatically transfer selected items into an Excel quotation.</p>
     </div>
-    <div class="badge">V16 · Excel image fix</div>
+    <div class="badge">V18 · Clean product table</div>
   </header>
 
   <main class="container">
@@ -93,15 +93,11 @@
         </div>
         <div class="sheet-panel-head">
           <div>
-            <strong>Sheets in selected price list</strong>
-            <span class="muted">Only sheets belonging to the selected price list are shown here.</span>
-          </div>
-          <div class="button-row">
-            <button id="allSheetsOnBtn" class="mini-btn" type="button">Enable all</button>
-            <button id="onlyMainSheetBtn" class="mini-btn" type="button">HOFMANN 2026 only</button>
+            <strong>Select sheet</strong>
+            <span class="muted">Select one sheet. Only products from the selected sheet are shown.</span>
           </div>
         </div>
-        <div id="sheetTogglePanel" class="sheet-toggle-panel"></div>
+        <div id="sheetTogglePanel" class="sheet-tab-panel"></div>
       </div>
       <p class="color-note">RAL is always shown as “RAL xxxx”. The colour swatch is an on-screen approximation; the RAL number is the reference.</p>
 
@@ -111,7 +107,6 @@
             <tr>
               <th></th>
               <th>Image</th>
-              <th>Price list</th>
               <th>Part No.</th>
               <th>Model</th>
               <th>RAL</th>

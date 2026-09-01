@@ -1,12 +1,10 @@
-# Price List Analyzer V16
+# Price List Analyzer V18
 
-V16 fixes product-picture extraction from Excel workbooks that use Microsoft 365 **Picture in Cell / Rich Value** images.
+English GitHub Pages app for importing multiple Excel price lists, searching products and creating Excel quotations.
 
-## V16 changes
-- Robust OOXML parsing for in-cell product images.
-- Keeps support for traditional floating worksheet images.
-- Adds console diagnostics with the number of images loaded per sheet.
-- Keeps price-list tabs, sheet selection, RAL/colour, Second Discount and quotation export.
-- Cache-busted `app.js` and `styles.css` references so GitHub Pages loads the V16 files.
-
-After deploying V16, delete the old locally stored price list once and re-import the original Excel workbook so the images are extracted and stored again.
+## V18 changes
+- Removed the **Price list** column from the product results table.
+- The currently selected price list/sheet remains visible in the tabs above the table.
+- Product table now shows: Select, Image, Part No., Model, RAL, Colour, Family, List Price, Discount, Net Price.
+- The optional **Price List / Source** field remains available in the Excel export options.
+- All V17 single-sheet tab behaviour, image support, RAL colour display, Second Discount and quote export features remain unchanged.

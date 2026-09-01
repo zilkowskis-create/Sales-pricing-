@@ -113,23 +113,6 @@ filtersEnabledToggle.addEventListener('change', () => {
   renderResults();
 }));
 el('clearFiltersBtn').addEventListener('click', clearFilters);
-el('allSheetsOnBtn').addEventListener('click', async () => {
-  const parent = currentPriceListParent();
-  for (const list of state.priceLists) {
-    if (!parent || getParentKey(list) === parent) { list.enabled = true; await savePriceList(list); }
-  }
-  refreshAll();
-});
-el('onlyMainSheetBtn').addEventListener('click', async () => {
-  const parent = currentPriceListParent();
-  for (const list of state.priceLists) {
-    if (!parent || getParentKey(list) === parent) {
-      list.enabled = normalize(list.sheetName) === normalize('HOFMANN 2026');
-      await savePriceList(list);
-    }
-  }
-  refreshAll();
-});
 priceListTabs?.addEventListener('click', (event) => {
   const tab = event.target.closest('[data-price-list-tab]');
   if (!tab) return;
@@ -143,14 +126,24 @@ priceListTabs?.addEventListener('click', (event) => {
   renderResults();
 });
 
-sheetTogglePanel.addEventListener('change', async (event) => {
-  const checkbox = event.target.closest('[data-sheet-toggle]');
-  if (!checkbox) return;
-  const list = state.priceLists.find(x => x.id === checkbox.dataset.sheetToggle);
-  if (!list) return;
-  list.enabled = checkbox.checked;
-  await savePriceList(list);
+sheetTogglePanel.addEventListener('click', async (event) => {
+  const tab = event.target.closest('[data-sheet-tab]');
+  if (!tab) return;
+  const selected = state.priceLists.find(x => x.id === tab.dataset.sheetTab);
+  if (!selected) return;
+  const parent = getParentKey(selected);
+  for (const list of state.priceLists) {
+    if (getParentKey(list) !== parent) continue;
+    const shouldEnable = list.id === selected.id;
+    if (list.enabled !== shouldEnable) {
+      list.enabled = shouldEnable;
+      await savePriceList(list);
+    }
+  }
+  state.activeListId = selected.id;
   renderSavedLists();
+  renderPriceListSelector();
+  renderMapping();
   renderFilters();
   renderSheetToggles();
   renderResults();
@@ -198,10 +191,20 @@ savedLists.addEventListener('change', async (event) => {
   if (!checkbox) return;
   const list = state.priceLists.find(x => x.id === checkbox.dataset.enableList);
   if (!list) return;
-  list.enabled = checkbox.checked;
-  await savePriceList(list);
+  const parent = getParentKey(list);
+  if (checkbox.checked) {
+    for (const sibling of state.priceLists) {
+      if (getParentKey(sibling) !== parent) continue;
+      sibling.enabled = sibling.id === list.id;
+      await savePriceList(sibling);
+    }
+  } else {
+    // Keep one sheet active per price list. A selected sheet cannot be disabled without selecting another one.
+    checkbox.checked = true;
+  }
   renderSavedLists();
   renderFilters();
+  renderSheetToggles();
   renderResults();
 });
 
@@ -278,7 +281,8 @@ async function init() {
       upgraded.items = mapItems(upgraded);
       return upgraded;
     });
-    state.activeListId = state.priceLists[0]?.id || null;
+    await enforceSingleSheetPerPriceList();
+    state.activeListId = state.priceLists.find(x => x.enabled)?.id || state.priceLists[0]?.id || null;
     refreshAll();
     initializeOfferMeta();
     updateDraftStatus();
@@ -332,7 +336,7 @@ async function handleFiles(event) {
           sourceData: data,
           images: extractedImages.images,
           imageRowMap: extractedImages.rowToImageId,
-          enabled: previousEnabled,
+          enabled: false,
           lockToSheet: true
         }, sheetName);
 
@@ -343,8 +347,14 @@ async function handleFiles(event) {
         lastList = list;
       }
 
-      if (!lastList) throw new Error('Keine Produktpositionen in der Datei erkannt.');
-      state.activeListId = lastList.id;
+      if (!lastList) throw new Error('No product items detected in the file.');
+      const importedSheets = state.priceLists.filter(x => x.parentFileId === parentFileId);
+      const preferred = importedSheets.find(x => normalize(x.sheetName) === normalize('HOFMANN 2026')) || importedSheets[0];
+      for (const list of importedSheets) {
+        list.enabled = list.id === preferred?.id;
+        await savePriceList(list);
+      }
+      state.activeListId = preferred?.id || lastList.id;
       imported++;
       fileInfo.textContent = `${file.name}: ${productSheets.length} price list sheet(s) loaded.`;
     } catch (err) {
@@ -705,12 +715,33 @@ function renderSheetToggles() {
     .filter(list => getParentKey(list) === parent)
     .sort((a,b) => rank(a.sheetName) - rank(b.sheetName) || a.sheetName.localeCompare(b.sheetName));
 
+  let active = lists.find(list => list.enabled);
+  if (!active && lists.length) active = lists[0];
+
   sheetTogglePanel.innerHTML = lists.map(list => `
-    <label class="sheet-toggle ${list.enabled ? 'active' : ''}">
-      <input type="checkbox" data-sheet-toggle="${escapeAttr(list.id)}" ${list.enabled ? 'checked' : ''} />
-      <span><strong>${escapeHtml(list.sheetName)}</strong><small>${list.items.length.toLocaleString('en-GB')} items</small></span>
-    </label>
+    <button type="button" class="sheet-tab ${list.id === active?.id ? 'active' : ''}" data-sheet-tab="${escapeAttr(list.id)}">
+      <strong>${escapeHtml(list.sheetName)}</strong>
+      <small>${list.items.length.toLocaleString('en-GB')} items</small>
+    </button>
   `).join('');
+}
+
+async function enforceSingleSheetPerPriceList() {
+  const groups = getPriceListGroups();
+  for (const group of groups) {
+    const enabled = group.lists.filter(x => x.enabled);
+    const preferred = enabled.find(x => normalize(x.sheetName) === normalize('HOFMANN 2026'))
+      || enabled[0]
+      || group.lists.find(x => normalize(x.sheetName) === normalize('HOFMANN 2026'))
+      || group.lists[0];
+    for (const list of group.lists) {
+      const shouldEnable = list.id === preferred?.id;
+      if (list.enabled !== shouldEnable) {
+        list.enabled = shouldEnable;
+        await savePriceList(list);
+      }
+    }
+  }
 }
 
 function renderPriceListSelector() {
@@ -857,7 +888,7 @@ function renderResults() {
   resultCount.textContent = `${matches.length} results · all shown`;
 
   if (!matches.length) {
-    resultsBody.innerHTML = '<tr><td colspan="11" class="empty">Keine passenden Artikel gefunden.</td></tr>';
+    resultsBody.innerHTML = '<tr><td colspan="10" class="empty">No matching products found.</td></tr>';
     return;
   }
 
@@ -867,7 +898,6 @@ function renderResults() {
     return `<tr>
       <td><input class="result-check" type="checkbox" data-offer-uid="${escapeAttr(item.uid)}" ${selected ? 'checked' : ''} /></td>
       <td class="image-cell">${renderProductImage(image, item, false)}</td>
-      <td><span class="source-pill">${escapeHtml(item.sourceSheet || shortFileName(item.source))}</span></td>
       <td>${escapeHtml(item.article)}</td>
       <td>${escapeHtml(item.model)}</td>
       <td>${renderRalText(item.color)}</td>
