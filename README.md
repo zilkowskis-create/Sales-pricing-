@@ -1,10 +1,12 @@
-# Price List Analyzer V20
+# Price List Analyzer V21
 
-Fixes the V19 loading issue caused by stale cache references.
+English GitHub Pages app for importing Excel price lists, searching products and creating Excel quotations.
 
-## V20 fixes
-- `index.html` now loads `styles.css?v=20` and `app.js?v=20`.
-- Product table remains: Select, Image, Part No., Model, RAL, Colour, Family, List Price, Discount, Net Price, Second Discount, Units, Total.
-- Price List column remains removed.
-- Second Discount and Units stay editable directly in the product table.
-- Existing sheet tabs, images, filters, drafts and Excel export remain available.
+## V21 changes
+- The workspace now uses almost the full browser width.
+- **Manage price lists** shows each uploaded Excel file only once as the main price list.
+- Individual Excel sheets are no longer repeated in **Manage price lists**.
+- Sheet tabs remain available in the product selection area for the currently selected main price list.
+- Deleting a main price list removes all sheets belonging to that uploaded file.
+- Mapping opens the main/active sheet of the selected price-list file.
+- All V20 pricing, image, RAL, Second Discount, Units and Total features remain available.

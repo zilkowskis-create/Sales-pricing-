@@ -38,9 +38,10 @@ body {
   white-space: nowrap;
 }
 .container {
-  max-width: 1280px;
-  margin: 26px auto;
-  padding: 0 20px 40px;
+  width: 100%;
+  max-width: none;
+  margin: 18px auto;
+  padding: 0 14px 36px;
   display: grid;
   gap: 20px;
 }
@@ -565,3 +566,28 @@ kbd {
 .result-units-input { width: 72px; min-width: 66px; }
 .result-total { font-weight: 800; white-space: nowrap; }
 #searchCard table { min-width: 1380px; }
+
+
+/* V21: full-width workspace + one row per uploaded price-list file */
+.card { width: 100%; }
+.table-wrap { width: 100%; }
+.main-price-list-row { min-height: 72px; }
+.price-file-summary { cursor: default; }
+.price-file-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: #eaf2ff;
+  color: #1f5eff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+@media (min-width: 1500px) {
+  .topbar { padding-left: 24px; padding-right: 24px; }
+  .card { padding-left: 26px; padding-right: 26px; }
+}

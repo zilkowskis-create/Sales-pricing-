@@ -186,46 +186,36 @@ exportOptionsGrid.addEventListener('change', (event) => {
   saveExportOptions();
 });
 
-savedLists.addEventListener('change', async (event) => {
-  const checkbox = event.target.closest('[data-enable-list]');
-  if (!checkbox) return;
-  const list = state.priceLists.find(x => x.id === checkbox.dataset.enableList);
-  if (!list) return;
-  const parent = getParentKey(list);
-  if (checkbox.checked) {
-    for (const sibling of state.priceLists) {
-      if (getParentKey(sibling) !== parent) continue;
-      sibling.enabled = sibling.id === list.id;
-      await savePriceList(sibling);
-    }
-  } else {
-    // Keep one sheet active per price list. A selected sheet cannot be disabled without selecting another one.
-    checkbox.checked = true;
-  }
-  renderSavedLists();
-  renderFilters();
-  renderSheetToggles();
-  renderResults();
-});
-
 savedLists.addEventListener('click', async (event) => {
-  const editBtn = event.target.closest('[data-edit-list]');
+  const editBtn = event.target.closest('[data-edit-price-file]');
   if (editBtn) {
-    setActiveList(editBtn.dataset.editList);
+    const parent = editBtn.dataset.editPriceFile;
+    const group = getPriceListGroups().find(g => g.key === parent);
+    if (!group) return;
+    const preferred = group.lists.find(x => normalize(x.sheetName) === normalize('HOFMANN 2026'))
+      || group.lists.find(x => x.enabled)
+      || group.lists[0];
+    if (!preferred) return;
+    setActiveList(preferred.id);
     mappingCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
 
-  const removeBtn = event.target.closest('[data-remove-list]');
+  const removeBtn = event.target.closest('[data-remove-price-file]');
   if (removeBtn) {
-    const id = removeBtn.dataset.removeList;
-    const list = state.priceLists.find(x => x.id === id);
-    if (!list) return;
-    if (!confirm(`Delete price list “${list.fileName}” from the browser?`)) return;
-    await deletePriceList(id);
-    state.priceLists = state.priceLists.filter(x => x.id !== id);
-    state.offer = state.offer.filter(x => x.listId !== id);
-    if (state.activeListId === id) state.activeListId = state.priceLists[0]?.id || null;
+    const parent = removeBtn.dataset.removePriceFile;
+    const group = getPriceListGroups().find(g => g.key === parent);
+    if (!group) return;
+    if (!confirm(`Delete price list “${group.fileName}” including all of its sheets from the browser?`)) return;
+    const ids = new Set(group.lists.map(x => x.id));
+    for (const list of group.lists) await deletePriceList(list.id);
+    state.priceLists = state.priceLists.filter(x => !ids.has(x.id));
+    state.offer = state.offer.filter(x => !ids.has(x.listId));
+    if (ids.has(state.activeListId)) state.activeListId = state.priceLists[0]?.id || null;
+    if (state.searchSettings.source === parent) {
+      state.searchSettings.source = getPriceListGroups()[0]?.key || '';
+      saveSearchSettings();
+    }
     refreshAll();
   }
 });
@@ -628,32 +618,38 @@ function refreshAll() {
   offerCard.classList.toggle('hidden', !hasLists);
 
   if (hasLists && !fileInfo.textContent.includes('saved')) {
-    const activeCount = state.priceLists.filter(x => x.enabled).length;
-    fileInfo.textContent = `${state.priceLists.length} price list(s) saved in the browser · ${activeCount} active.`;
+    const groups = getPriceListGroups();
+    fileInfo.textContent = `${groups.length} price list file(s) saved in the browser.`;
   }
 }
 
 function renderSavedLists() {
-  if (!state.priceLists.length) {
+  const groups = getPriceListGroups();
+  if (!groups.length) {
     savedLists.innerHTML = '<div class="empty-box">No price lists saved yet.</div>';
     return;
   }
 
-  savedLists.innerHTML = state.priceLists.map(list => `
-    <div class="saved-list-row ${list.enabled ? '' : 'disabled-row'}">
-      <label class="saved-list-main">
-        <input type="checkbox" data-enable-list="${escapeAttr(list.id)}" ${list.enabled ? 'checked' : ''} />
-        <span>
-          <strong>${escapeHtml(list.displayName || list.fileName)}</strong>
-          <small>${escapeHtml(list.sheetName)} · ${list.items.length.toLocaleString('en-GB')} items · ${Object.keys(list.images || {}).length ? `${Object.keys(list.images || {}).length} images` : 'Images available after re-import'}</small>
-        </span>
-      </label>
-      <div class="button-row">
-        <button class="mini-btn" data-edit-list="${escapeAttr(list.id)}">Mapping</button>
-        <button class="mini-btn danger-text" data-remove-list="${escapeAttr(list.id)}">Delete</button>
-      </div>
-    </div>
-  `).join('');
+  savedLists.innerHTML = groups.map(group => {
+    const totalItems = group.lists.reduce((sum, list) => sum + list.items.length, 0);
+    const imageIds = new Set();
+    group.lists.forEach(list => Object.keys(list.images || {}).forEach(id => imageIds.add(id)));
+    const activeSheet = group.lists.find(list => list.enabled) || group.lists[0];
+    return `
+      <div class="saved-list-row main-price-list-row">
+        <div class="saved-list-main price-file-summary">
+          <span class="price-file-icon">XLSX</span>
+          <span>
+            <strong>${escapeHtml(group.fileName)}</strong>
+            <small>${group.lists.length} sheets · ${totalItems.toLocaleString('en-GB')} items${imageIds.size ? ` · ${imageIds.size.toLocaleString('en-GB')} images` : ''}${activeSheet ? ` · Active: ${escapeHtml(activeSheet.sheetName)}` : ''}</small>
+          </span>
+        </div>
+        <div class="button-row">
+          <button class="mini-btn" data-edit-price-file="${escapeAttr(group.key)}">Mapping</button>
+          <button class="mini-btn danger-text" data-remove-price-file="${escapeAttr(group.key)}">Delete</button>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 function getParentKey(list) {
