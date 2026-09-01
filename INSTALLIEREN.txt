@@ -1,0 +1,29 @@
+Preislisten-Analyzer – Bereich-Filter Patch
+
+Was ändert sich?
+- Der Filter „Price list“ heißt danach „Bereich“.
+- Statt 7x demselben Excel-Dateinamen werden die Bereiche/Tabellenblätter angezeigt,
+  z. B. HOFMANN 2026, OEM, Wheel Aligners Accessories, Wheel Balancers Accessories usw.
+- Der bestehende Family/Group-Filter bleibt unverändert.
+- Die Filterlogik bleibt kompatibel mit der aktuellen V12-App.
+
+Installation auf GitHub:
+1. Datei area-filter-patch.js in das Hauptverzeichnis deines Repositorys hochladen.
+2. index.html auf GitHub öffnen und auf Edit (Stift-Symbol) klicken.
+3. Ganz unten direkt NACH dieser Zeile:
+
+   <script src="app.js"></script>
+
+   folgende Zeile einfügen:
+
+   <script src="area-filter-patch.js"></script>
+
+4. Commit changes speichern.
+5. GitHub Pages neu laden. Falls noch die alte Version erscheint: Strg+F5 drücken.
+
+Die relevante Stelle sollte danach so aussehen:
+
+   <script src="app.js"></script>
+   <script src="area-filter-patch.js"></script>
+</body>
+</html>
