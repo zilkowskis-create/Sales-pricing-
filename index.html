@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Price List Analyzer & Quote Generator</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Price List Analyzer</h1>
+      <p>Search multiple price lists and automatically transfer selected items into an Excel quotation.</p>
+    </div>
+    <div class="badge">V14 · Price list & sheet selector</div>
+  </header>
+
+  <main class="container">
+    <section class="card upload-card">
+      <div class="section-head compact-head">
+        <div>
+          <h2>1. Manage price lists</h2>
+          <p class="muted">Multiple Excel files can be loaded at the same time. They are stored locally in your browser.</p>
+        </div>
+        <div class="button-row">
+          <label class="file-btn">
+            Add price lists
+            <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" multiple hidden />
+          </label>
+          <button id="clearListsBtn" class="ghost-btn">Delete all</button>
+        </div>
+      </div>
+      <div id="fileInfo" class="file-info">Loading saved price lists …</div>
+      <div id="savedLists" class="saved-lists"></div>
+    </section>
+
+    <section id="mappingCard" class="card hidden">
+      <div class="section-head">
+        <div>
+          <h2>2. Column mapping</h2>
+          <p class="muted">The mapping is saved per price list. DESCRIPTION can be searched but is not included in the quotation.</p>
+        </div>
+        <button id="applyMappingBtn" class="secondary-btn">Save mapping</button>
+      </div>
+      <div class="mapping-grid mapping-grid-wide">
+        <label>Price list<select id="priceListSelect"></select></label>
+        <label>Price list sheet<select id="sheetSelect"></select></label>
+        <label>Part No.<select id="articleCol"></select></label>
+        <label>Model / short description<select id="modelCol"></select></label>
+        <label>List Price<select id="listPriceCol"></select></label>
+        <label>Price list discount<select id="priceListDiscountCol"></select></label>
+        <label>Net Price<select id="netPriceCol"></select></label>
+        <label>Family / Group<select id="familyCol"></select></label>
+        <label>Colour / RAL<select id="colorCol"></select></label>
+      </div>
+    </section>
+
+    <section id="searchCard" class="card hidden">
+      <div class="section-head">
+        <div>
+          <h2>3. Select products</h2>
+          <p class="muted">Search across all active price lists by Part No., model or any keyword.</p>
+        </div>
+        <div class="button-row">
+          <label class="toggle-chip" title="Enable or disable additional filters for price list, family and colour">
+            <input id="filtersEnabledToggle" type="checkbox" checked />
+            <span>Filters enabled</span>
+          </label>
+          <button id="clearSearchBtn" class="ghost-btn">Clear search</button>
+        </div>
+      </div>
+      <div class="search-row">
+        <input id="searchInput" type="search" placeholder="e.g. EEWAEU715TB4, geoliner 678, tyre changer …" />
+        <span id="resultCount" class="count-pill">0 results</span>
+      </div>
+      <div class="shortcut-hint"><strong>⌨ Quick:</strong> Enter a search term and press <kbd>Enter</kbd> – the first result is added directly to the quotation. If it is already included, the quantity increases by 1.</div>
+
+      <div id="filterPanel" class="search-filters">
+        <label>Price list<select id="sourceFilter"><option value="">All price lists</option></select></label>
+        <label>Family / Group<select id="familyFilter"><option value="">All families</option></select></label>
+        <label>Colour / RAL<select id="colorFilter"><option value="">All colours</option></select></label>
+        <div class="filter-actions">
+          <button id="clearFiltersBtn" class="mini-btn" type="button">Reset filters</button>
+        </div>
+      </div>
+
+      <div class="sheet-panel">
+        <div class="price-list-tab-wrap">
+          <div class="price-list-tab-label">Price list</div>
+          <div id="priceListTabs" class="price-list-tabs"></div>
+        </div>
+        <div class="sheet-panel-head">
+          <div>
+            <strong>Sheets in selected price list</strong>
+            <span class="muted">Only sheets belonging to the selected price list are shown here.</span>
+          </div>
+          <div class="button-row">
+            <button id="allSheetsOnBtn" class="mini-btn" type="button">Enable all</button>
+            <button id="onlyMainSheetBtn" class="mini-btn" type="button">HOFMANN 2026 only</button>
+          </div>
+        </div>
+        <div id="sheetTogglePanel" class="sheet-toggle-panel"></div>
+      </div>
+      <p class="color-note">RAL is always shown as “RAL xxxx”. The colour swatch is an on-screen approximation; the RAL number is the reference.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th>Image</th>
+              <th>Price list</th>
+              <th>Part No.</th>
+              <th>Model</th>
+              <th>RAL</th>
+              <th>Colour</th>
+              <th>Family</th>
+              <th class="num">List Price</th>
+              <th class="num">Discount</th>
+              <th class="num">Net Price</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="offerCard" class="card hidden">
+      <div class="section-head">
+        <div>
+          <h2>4. Create quotation</h2>
+          <p class="muted">Set quantity and Second Discount. All selected products are then transferred automatically into an Excel quotation file.</p>
+        </div>
+        <div class="button-row">
+          <button id="clearOfferBtn" class="ghost-btn">Clear selection</button>
+          <button id="exportBtn" class="primary-btn">Create Excel quotation</button>
+        </div>
+      </div>
+
+      <div class="offer-meta">
+        <label>Customer<input id="customerName" type="text" placeholder="Customer name" /></label>
+        <label>Quotation No.<input id="offerNumber" type="text" placeholder="e.g. AN-20260831-001" /></label>
+        <label>Quotation date<input id="offerDate" type="date" /></label>
+        <label>Currency<select id="currency"><option>EUR</option><option>SEK</option><option>USD</option><option>GBP</option><option>CHF</option></select></label>
+      </div>
+
+      <div class="quick-offer-panel">
+        <div class="quick-offer-head">
+          <div>
+            <h3>Quick quotation</h3>
+            <p class="muted">Bulk actions and draft storage for recurring quotations.</p>
+          </div>
+          <span id="draftStatus" class="draft-status">No draft saved yet</span>
+        </div>
+        <div class="quick-actions-grid">
+          <div class="quick-action-group">
+            <button id="generateOfferNoBtn" class="secondary-btn" type="button">Generate quotation no.</button>
+          </div>
+          <div class="quick-action-group inline-action">
+            <input id="bulkQty" type="number" min="1" step="1" value="1" aria-label="Quantity for all" />
+            <button id="applyQtyAllBtn" class="mini-btn" type="button">Apply quantity to all</button>
+          </div>
+          <div class="quick-action-group inline-action">
+            <input id="bulkDiscount" type="number" min="0" max="100" step="0.1" value="0" aria-label="Second Discount for all" />
+            <button id="applyDiscountAllBtn" class="mini-btn" type="button">Apply Second Discount to all</button>
+          </div>
+          <div class="quick-action-group draft-actions">
+            <button id="saveDraftBtn" class="mini-btn" type="button">Save draft</button>
+            <button id="loadDraftBtn" class="mini-btn" type="button">Load last draft</button>
+            <button id="newOfferBtn" class="ghost-btn" type="button">New quotation</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="export-options">
+        <div class="export-options-head">
+          <div>
+            <h3>Excel export options</h3>
+            <p class="muted">Choose which columns are included in the generated quotation. Your selection is saved.</p>
+          </div>
+          <div class="button-row">
+            <button id="defaultExportOptionsBtn" class="mini-btn" type="button">Default</button>
+            <button id="allExportOptionsBtn" class="mini-btn" type="button">Enable all</button>
+          </div>
+        </div>
+        <div id="exportOptionsGrid" class="export-options-grid"></div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="offer-table">
+          <thead>
+            <tr>
+              <th>Pos.</th>
+              <th>Image</th>
+              <th>Part No.</th>
+              <th>Model</th>
+              <th>RAL</th>
+              <th>Colour</th>
+              <th>Qty</th>
+              <th class="num">List Price</th>
+              <th class="num">Discount</th>
+              <th class="num">Net/Unit</th>
+              <th>Second Discount %</th>
+              <th class="num">Quote/Unit</th>
+              <th class="num">Total</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="offerBody"></tbody>
+          <tfoot>
+            <tr>
+              <td colspan="12" class="total-label">Grand total</td>
+              <td id="grandTotal" class="num total-value">0,00 EUR</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="imageDialog" class="image-dialog">
+    <button id="closeImageDialog" class="image-dialog-close" type="button" aria-label="Close image">×</button>
+    <img id="imageDialogImg" alt="Large product image" />
+    <div id="imageDialogCaption" class="image-dialog-caption"></div>
+  </dialog>
+
+  <footer>
+    <p>Price List Analyzer · Price lists and processing remain local in this browser</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
