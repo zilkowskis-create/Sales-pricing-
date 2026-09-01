@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Preislisten-Analyzer & Angebotsgenerator</title>
+  <title>Price List Analyzer & Quote Generator</title>
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
@@ -11,97 +11,111 @@
 <body>
   <header class="topbar">
     <div>
-      <h1>Preislisten-Analyzer</h1>
-      <p>Mehrere Preislisten durchsuchen und ausgewählte Positionen automatisch in ein Excel-Angebot übertragen.</p>
+      <h1>Price List Analyzer</h1>
+      <p>Search multiple price lists and automatically transfer selected items into an Excel quotation.</p>
     </div>
-    <div class="badge">V10 · vollständige Preisliste, RAL & Farbe</div>
+    <div class="badge">V12 · English UI</div>
   </header>
 
   <main class="container">
     <section class="card upload-card">
       <div class="section-head compact-head">
         <div>
-          <h2>1. Preislisten verwalten</h2>
-          <p class="muted">Mehrere Excel-Dateien können gleichzeitig geladen werden. Sie werden lokal im Browser gespeichert.</p>
+          <h2>1. Manage price lists</h2>
+          <p class="muted">Multiple Excel files can be loaded at the same time. They are stored locally in your browser.</p>
         </div>
         <div class="button-row">
           <label class="file-btn">
-            Preislisten hinzufügen
+            Add price lists
             <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" multiple hidden />
           </label>
-          <button id="clearListsBtn" class="ghost-btn">Alle löschen</button>
+          <button id="clearListsBtn" class="ghost-btn">Delete all</button>
         </div>
       </div>
-      <div id="fileInfo" class="file-info">Gespeicherte Preislisten werden geladen …</div>
+      <div id="fileInfo" class="file-info">Loading saved price lists …</div>
       <div id="savedLists" class="saved-lists"></div>
     </section>
 
     <section id="mappingCard" class="card hidden">
       <div class="section-head">
         <div>
-          <h2>2. Spaltenzuordnung</h2>
-          <p class="muted">Die Zuordnung wird pro Preisliste gespeichert. DESCRIPTION kann durchsucht werden, erscheint aber nicht im Angebot.</p>
+          <h2>2. Column mapping</h2>
+          <p class="muted">The mapping is saved per price list. DESCRIPTION can be searched but is not included in the quotation.</p>
         </div>
-        <button id="applyMappingBtn" class="secondary-btn">Zuordnung speichern</button>
+        <button id="applyMappingBtn" class="secondary-btn">Save mapping</button>
       </div>
       <div class="mapping-grid mapping-grid-wide">
-        <label>Preisliste<select id="priceListSelect"></select></label>
-        <label>Preislisten-Blatt<select id="sheetSelect"></select></label>
-        <label>Artikelnummer<select id="articleCol"></select></label>
-        <label>Modell / kurze Bezeichnung<select id="modelCol"></select></label>
-        <label>Listenpreis<select id="listPriceCol"></select></label>
-        <label>Preislistenrabatt<select id="priceListDiscountCol"></select></label>
-        <label>Netto-Preis<select id="netPriceCol"></select></label>
-        <label>Familie / Gruppe<select id="familyCol"></select></label>
-        <label>Farbe / RAL<select id="colorCol"></select></label>
+        <label>Price list<select id="priceListSelect"></select></label>
+        <label>Price listn-Blatt<select id="sheetSelect"></select></label>
+        <label>Part No.<select id="articleCol"></select></label>
+        <label>Model / short description<select id="modelCol"></select></label>
+        <label>List Price<select id="listPriceCol"></select></label>
+        <label>Price listnrabatt<select id="priceListDiscountCol"></select></label>
+        <label>Net Price<select id="netPriceCol"></select></label>
+        <label>Family / Group<select id="familyCol"></select></label>
+        <label>Colour / RAL<select id="colorCol"></select></label>
       </div>
     </section>
 
     <section id="searchCard" class="card hidden">
       <div class="section-head">
         <div>
-          <h2>3. Produkte auswählen</h2>
-          <p class="muted">Eine Suche läuft über alle aktivierten Preislisten. Suche nach Artikelnummer, Modell oder beliebigem Begriff.</p>
+          <h2>3. Select products</h2>
+          <p class="muted">Search across all active price lists by Part No., model or any keyword.</p>
         </div>
         <div class="button-row">
-          <label class="toggle-chip" title="Zusatzfilter für Preisliste, Family und Farbe an- oder ausschalten">
+          <label class="toggle-chip" title="Zusatzfilter für Price list, Family und Colour an- oder ausschalten">
             <input id="filtersEnabledToggle" type="checkbox" checked />
-            <span>Filter aktiv</span>
+            <span>Filters enabled</span>
           </label>
-          <button id="clearSearchBtn" class="ghost-btn">Suche löschen</button>
+          <button id="clearSearchBtn" class="ghost-btn">Clear search</button>
         </div>
       </div>
       <div class="search-row">
         <input id="searchInput" type="search" placeholder="z. B. EEWAEU715TB4, geoliner 678, tyre changer …" />
-        <span id="resultCount" class="count-pill">0 Treffer</span>
+        <span id="resultCount" class="count-pill">0 results</span>
       </div>
-      <div class="shortcut-hint"><strong>⌨ Schnell:</strong> Suchbegriff eingeben und <kbd>Enter</kbd> drücken – der erste Treffer wird direkt ins Angebot übernommen. Ist er schon enthalten, erhöht sich die Menge um 1.</div>
+      <div class="shortcut-hint"><strong>⌨ Quick:</strong> Enter a search term and press <kbd>Enter</kbd> – the first result is added directly to the quotation. If it is already included, the quantity increases by 1.</div>
 
       <div id="filterPanel" class="search-filters">
-        <label>Preisliste<select id="sourceFilter"><option value="">Alle Preislisten</option></select></label>
-        <label>Family / Gruppe<select id="familyFilter"><option value="">Alle Families</option></select></label>
-        <label>Farbe / RAL<select id="colorFilter"><option value="">Alle Farben</option></select></label>
+        <label>Price list<select id="sourceFilter"><option value="">Alle Price listn</option></select></label>
+        <label>Family / Group<select id="familyFilter"><option value="">All families</option></select></label>
+        <label>Colour / RAL<select id="colorFilter"><option value="">All colours</option></select></label>
         <div class="filter-actions">
-          <button id="clearFiltersBtn" class="mini-btn" type="button">Filter zurücksetzen</button>
+          <button id="clearFiltersBtn" class="mini-btn" type="button">Reset filters</button>
         </div>
       </div>
-      <p class="color-note">RAL wird immer als „RAL xxxx“ angezeigt. Die zusätzliche Farbfläche ist eine Bildschirm-Näherung; verbindlich ist die RAL-Nummer.</p>
+
+      <div class="sheet-panel">
+        <div class="sheet-panel-head">
+          <div>
+            <strong>Price list sheets</strong>
+            <span class="muted">Enable only the sections you want to search.</span>
+          </div>
+          <div class="button-row">
+            <button id="allSheetsOnBtn" class="mini-btn" type="button">Enable all</button>
+            <button id="onlyMainSheetBtn" class="mini-btn" type="button">HOFMANN 2026 only</button>
+          </div>
+        </div>
+        <div id="sheetTogglePanel" class="sheet-toggle-panel"></div>
+      </div>
+      <p class="color-note">RAL is always shown as “RAL xxxx”. The colour swatch is an on-screen approximation; the RAL number is the reference.</p>
 
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
               <th></th>
-              <th>Bild</th>
-              <th>Preisliste</th>
-              <th>Artikelnummer</th>
-              <th>Modell</th>
+              <th>Image</th>
+              <th>Price list</th>
+              <th>Part No.</th>
+              <th>Model</th>
               <th>RAL</th>
-              <th>Farbe</th>
-              <th>Familie</th>
-              <th class="num">Listenpreis</th>
-              <th class="num">PL-Rabatt</th>
-              <th class="num">Netto-Preis</th>
+              <th>Colour</th>
+              <th>Family</th>
+              <th class="num">List Price</th>
+              <th class="num">Discount</th>
+              <th class="num">Net Price</th>
             </tr>
           </thead>
           <tbody id="resultsBody"></tbody>
@@ -112,46 +126,46 @@
     <section id="offerCard" class="card hidden">
       <div class="section-head">
         <div>
-          <h2>4. Angebot erstellen</h2>
-          <p class="muted">Menge und Second Discount einstellen. Danach werden alle ausgewählten Produkte automatisch in eine Excel-Angebotsdatei übertragen.</p>
+          <h2>4. Create quotation</h2>
+          <p class="muted">Set quantity and Second Discount. All selected products are then transferred automatically into an Excel quotation file.</p>
         </div>
         <div class="button-row">
-          <button id="clearOfferBtn" class="ghost-btn">Auswahl leeren</button>
-          <button id="exportBtn" class="primary-btn">Angebot in Excel erstellen</button>
+          <button id="clearOfferBtn" class="ghost-btn">Clear selection</button>
+          <button id="exportBtn" class="primary-btn">Create Excel quotation</button>
         </div>
       </div>
 
       <div class="offer-meta">
-        <label>Kunde<input id="customerName" type="text" placeholder="Kundenname" /></label>
-        <label>Angebotsnummer<input id="offerNumber" type="text" placeholder="z. B. AN-20260831-001" /></label>
-        <label>Angebotsdatum<input id="offerDate" type="date" /></label>
-        <label>Währung<select id="currency"><option>EUR</option><option>SEK</option><option>USD</option><option>GBP</option><option>CHF</option></select></label>
+        <label>Customer<input id="customerName" type="text" placeholder="Customernname" /></label>
+        <label>Quotation No.<input id="offerNumber" type="text" placeholder="z. B. AN-20260831-001" /></label>
+        <label>Quotation date<input id="offerDate" type="date" /></label>
+        <label>Currency<select id="currency"><option>EUR</option><option>SEK</option><option>USD</option><option>GBP</option><option>CHF</option></select></label>
       </div>
 
       <div class="quick-offer-panel">
         <div class="quick-offer-head">
           <div>
-            <h3>Schnellangebot</h3>
-            <p class="muted">Sammelaktionen und Entwurfsspeicher für wiederkehrende Angebote.</p>
+            <h3>Quick quotation</h3>
+            <p class="muted">Bulk actions and draft storage for recurring quotations.</p>
           </div>
-          <span id="draftStatus" class="draft-status">Noch kein Entwurf gespeichert</span>
+          <span id="draftStatus" class="draft-status">No draft saved yet</span>
         </div>
         <div class="quick-actions-grid">
           <div class="quick-action-group">
-            <button id="generateOfferNoBtn" class="secondary-btn" type="button">Angebotsnummer erzeugen</button>
+            <button id="generateOfferNoBtn" class="secondary-btn" type="button">Quotation No. erzeugen</button>
           </div>
           <div class="quick-action-group inline-action">
-            <input id="bulkQty" type="number" min="1" step="1" value="1" aria-label="Menge für alle" />
-            <button id="applyQtyAllBtn" class="mini-btn" type="button">Menge auf alle</button>
+            <input id="bulkQty" type="number" min="1" step="1" value="1" aria-label="Quantity for all" />
+            <button id="applyQtyAllBtn" class="mini-btn" type="button">Apply quantity to all</button>
           </div>
           <div class="quick-action-group inline-action">
-            <input id="bulkDiscount" type="number" min="0" max="100" step="0.1" value="0" aria-label="Second Discount für alle" />
-            <button id="applyDiscountAllBtn" class="mini-btn" type="button">Second Discount auf alle</button>
+            <input id="bulkDiscount" type="number" min="0" max="100" step="0.1" value="0" aria-label="Second Discount for all" />
+            <button id="applyDiscountAllBtn" class="mini-btn" type="button">Apply Second Discount to all</button>
           </div>
           <div class="quick-action-group draft-actions">
-            <button id="saveDraftBtn" class="mini-btn" type="button">Entwurf speichern</button>
-            <button id="loadDraftBtn" class="mini-btn" type="button">Letzten laden</button>
-            <button id="newOfferBtn" class="ghost-btn" type="button">Neues Angebot</button>
+            <button id="saveDraftBtn" class="mini-btn" type="button">Save draft</button>
+            <button id="loadDraftBtn" class="mini-btn" type="button">Load last draft</button>
+            <button id="newOfferBtn" class="ghost-btn" type="button">New quotation</button>
           </div>
         </div>
       </div>
@@ -159,12 +173,12 @@
       <div class="export-options">
         <div class="export-options-head">
           <div>
-            <h3>Optionen für Excel-Übertragung</h3>
-            <p class="muted">Bestimme, welche Spalten in das erzeugte Angebot übernommen werden. Die Auswahl wird gespeichert.</p>
+            <h3>Excel export options</h3>
+            <p class="muted">Choose which columns are included in the generated quotation. Your selection is saved.</p>
           </div>
           <div class="button-row">
-            <button id="defaultExportOptionsBtn" class="mini-btn" type="button">Standard</button>
-            <button id="allExportOptionsBtn" class="mini-btn" type="button">Alle an</button>
+            <button id="defaultExportOptionsBtn" class="mini-btn" type="button">Default</button>
+            <button id="allExportOptionsBtn" class="mini-btn" type="button">Enable all</button>
           </div>
         </div>
         <div id="exportOptionsGrid" class="export-options-grid"></div>
@@ -175,25 +189,25 @@
           <thead>
             <tr>
               <th>Pos.</th>
-              <th>Bild</th>
-              <th>Artikelnummer</th>
-              <th>Modell</th>
+              <th>Image</th>
+              <th>Part No.</th>
+              <th>Model</th>
               <th>RAL</th>
-              <th>Farbe</th>
-              <th>Menge</th>
-              <th class="num">Listenpreis</th>
-              <th class="num">PL-Rabatt</th>
-              <th class="num">Netto/Stk.</th>
+              <th>Colour</th>
+              <th>Qty</th>
+              <th class="num">List Price</th>
+              <th class="num">Discount</th>
+              <th class="num">Net/Unit</th>
               <th>Second Discount %</th>
-              <th class="num">Angebot/Stk.</th>
-              <th class="num">Gesamt</th>
+              <th class="num">Quote/Unit</th>
+              <th class="num">Total</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="offerBody"></tbody>
           <tfoot>
             <tr>
-              <td colspan="12" class="total-label">Gesamtsumme</td>
+              <td colspan="12" class="total-label">Totalsumme</td>
               <td id="grandTotal" class="num total-value">0,00 EUR</td>
               <td></td>
             </tr>
@@ -204,13 +218,13 @@
   </main>
 
   <dialog id="imageDialog" class="image-dialog">
-    <button id="closeImageDialog" class="image-dialog-close" type="button" aria-label="Bild schließen">×</button>
+    <button id="closeImageDialog" class="image-dialog-close" type="button" aria-label="Image schließen">×</button>
     <img id="imageDialogImg" alt="Produktbild groß" />
     <div id="imageDialogCaption" class="image-dialog-caption"></div>
   </dialog>
 
   <footer>
-    <p>Preislisten-Analyzer · Preislisten und Verarbeitung bleiben lokal in diesem Browser</p>
+    <p>Price List Analyzer · Price listn und Verarbeitung bleiben lokal in diesem Browser</p>
   </footer>
 
   <script src="app.js"></script>

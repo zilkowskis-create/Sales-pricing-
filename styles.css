@@ -428,3 +428,46 @@ kbd {
 .ral-swatch-large { width: 42px; height: 24px; border-radius: 6px; border: 1px solid rgba(15,23,42,.28); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; }
 .ral-unknown { background: repeating-linear-gradient(45deg,#eee,#eee 5px,#ddd 5px,#ddd 10px); color:#555; }
 .muted-dash { color:#94a3b8; }
+
+
+/* V11 Blätterauswahl */
+.sheet-panel {
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fbfcfe;
+}
+.sheet-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.sheet-panel-head > div:first-child { display: flex; flex-direction: column; gap: 3px; }
+.sheet-toggle-panel {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.sheet-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid #dfe5ee;
+  border-radius: 10px;
+  background: white;
+  cursor: pointer;
+}
+.sheet-toggle.active { border-color: #9cb8ff; background: #f3f7ff; }
+.sheet-toggle input { width: 17px; height: 17px; flex: 0 0 auto; }
+.sheet-toggle span { display: flex; flex-direction: column; min-width: 0; }
+.sheet-toggle strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-toggle small { color: var(--muted); margin-top: 2px; }
+@media (max-width: 1000px) { .sheet-toggle-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 650px) {
+  .sheet-panel-head { align-items: flex-start; flex-direction: column; }
+  .sheet-toggle-panel { grid-template-columns: 1fr; }
+}

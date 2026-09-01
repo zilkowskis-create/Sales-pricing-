@@ -24,18 +24,18 @@ const DEFAULT_EXPORT_OPTIONS = {
 
 const EXPORT_FIELD_LABELS = {
   position: 'Pos.',
-  article: 'Artikelnummer',
-  model: 'Modell',
-  color: 'Farbe / RAL',
+  article: 'Part No.',
+  model: 'Model',
+  color: 'Colour / RAL',
   family: 'Family / Gruppe',
-  qty: 'Menge',
+  qty: 'Qty',
   listPrice: 'List Price',
   priceListDiscount: 'Discount',
   netPrice: 'Net Price',
   extraDiscount: 'Second Discount',
-  finalUnitPrice: 'Angebot/Stk.',
-  total: 'Gesamt',
-  source: 'Preisliste / Quelle'
+  finalUnitPrice: 'Quote/Unit',
+  total: 'Total',
+  source: 'Price List / Source'
 };
 
 const state = {
@@ -77,6 +77,7 @@ const colorFilter = el('colorFilter');
 const imageDialog = el('imageDialog');
 const imageDialogImg = el('imageDialogImg');
 const imageDialogCaption = el('imageDialogCaption');
+const sheetTogglePanel = el('sheetTogglePanel');
 
 fileInput.addEventListener('change', handleFiles);
 priceListSelect.addEventListener('change', () => setActiveList(priceListSelect.value));
@@ -98,6 +99,7 @@ filtersEnabledToggle.addEventListener('change', () => {
   state.searchSettings.filtersEnabled = filtersEnabledToggle.checked;
   saveSearchSettings();
   renderFilters();
+  renderSheetToggles();
   renderResults();
 });
 [sourceFilter, familyFilter, colorFilter].forEach(select => select.addEventListener('change', () => {
@@ -107,6 +109,29 @@ filtersEnabledToggle.addEventListener('change', () => {
   renderResults();
 }));
 el('clearFiltersBtn').addEventListener('click', clearFilters);
+el('allSheetsOnBtn').addEventListener('click', async () => {
+  for (const list of state.priceLists) { list.enabled = true; await savePriceList(list); }
+  refreshAll();
+});
+el('onlyMainSheetBtn').addEventListener('click', async () => {
+  for (const list of state.priceLists) {
+    list.enabled = normalize(list.sheetName) === normalize('HOFMANN 2026');
+    await savePriceList(list);
+  }
+  refreshAll();
+});
+sheetTogglePanel.addEventListener('change', async (event) => {
+  const checkbox = event.target.closest('[data-sheet-toggle]');
+  if (!checkbox) return;
+  const list = state.priceLists.find(x => x.id === checkbox.dataset.sheetToggle);
+  if (!list) return;
+  list.enabled = checkbox.checked;
+  await savePriceList(list);
+  renderSavedLists();
+  renderFilters();
+  renderSheetToggles();
+  renderResults();
+});
 el('clearOfferBtn').addEventListener('click', () => {
   state.offer = [];
   renderOffer();
@@ -170,7 +195,7 @@ savedLists.addEventListener('click', async (event) => {
     const id = removeBtn.dataset.removeList;
     const list = state.priceLists.find(x => x.id === id);
     if (!list) return;
-    if (!confirm(`Preisliste „${list.fileName}“ aus dem Browser löschen?`)) return;
+    if (!confirm(`Delete price list “${list.fileName}” from the browser?`)) return;
     await deletePriceList(id);
     state.priceLists = state.priceLists.filter(x => x.id !== id);
     state.offer = state.offer.filter(x => x.listId !== id);
@@ -194,7 +219,7 @@ offerBody.addEventListener('change', (event) => {
 offerBody.addEventListener('click', (event) => {
   const image = event.target.closest('[data-image-preview]');
   if (image) {
-    openImagePreview(image.src, image.dataset.imageCaption || 'Produktbild');
+    openImagePreview(image.src, image.dataset.imageCaption || 'Product image');
     return;
   }
   const btn = event.target.closest('[data-remove-offer]');
@@ -204,7 +229,7 @@ offerBody.addEventListener('click', (event) => {
 resultsBody.addEventListener('click', (event) => {
   const image = event.target.closest('[data-image-preview]');
   if (!image) return;
-  openImagePreview(image.src, image.dataset.imageCaption || 'Produktbild');
+  openImagePreview(image.src, image.dataset.imageCaption || 'Product image');
 });
 el('closeImageDialog').addEventListener('click', () => imageDialog.close());
 imageDialog.addEventListener('click', (event) => {
@@ -236,7 +261,7 @@ async function init() {
     updateDraftStatus();
   } catch (err) {
     console.error(err);
-    fileInfo.textContent = 'Lokaler Speicher konnte nicht geöffnet werden. Neue Preislisten können trotzdem geladen werden.';
+    fileInfo.textContent = 'Local storage could not be opened. New price lists can still be loaded.';
     refreshAll();
     initializeOfferMeta();
     updateDraftStatus();
@@ -247,7 +272,7 @@ async function handleFiles(event) {
   const files = Array.from(event.target.files || []);
   if (!files.length) return;
 
-  fileInfo.textContent = `${files.length} Preisliste(n) werden verarbeitet …`;
+  fileInfo.textContent = `${files.length} price list(s) are being processed …`;
   let imported = 0;
   let errors = 0;
 
@@ -255,7 +280,7 @@ async function handleFiles(event) {
     try {
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data, { type: 'array', cellDates: true });
-      if (!wb.SheetNames.length) throw new Error('Keine Tabellenblätter gefunden.');
+      if (!wb.SheetNames.length) throw new Error('No worksheets found.');
 
       const parentFileId = makeListId(file);
       const productSheets = detectProductSheets(wb);
@@ -298,7 +323,7 @@ async function handleFiles(event) {
       if (!lastList) throw new Error('Keine Produktpositionen in der Datei erkannt.');
       state.activeListId = lastList.id;
       imported++;
-      fileInfo.textContent = `${file.name}: ${productSheets.length} Preislisten-Blätter erkannt.`;
+      fileInfo.textContent = `${file.name}: ${productSheets.length} price list sheet(s) loaded.`;
     } catch (err) {
       console.error(file.name, err);
       errors++;
@@ -306,14 +331,14 @@ async function handleFiles(event) {
   }
 
   fileInput.value = '';
-  fileInfo.textContent = `${imported} Preisliste(n) gespeichert${errors ? ` · ${errors} Fehler` : ''}.`;
+  fileInfo.textContent = `${imported} price list(s) saved${errors ? ` · ${errors} error(s)` : ''}.`;
   refreshAll();
 }
 
 function buildPriceListFromSheet(base, sheetName) {
   const ws = base.workbook.Sheets[sheetName];
   const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
-  if (!matrix.length) throw new Error(`Blatt „${sheetName}“ enthält keine lesbaren Daten.`);
+  if (!matrix.length) throw new Error(`Sheet “${sheetName}” contains no readable data.`);
 
   const headerInfo = detectHeaderRow(matrix);
   const headers = makeUniqueHeaders(matrix[headerInfo.index].map((v, i) => String(v || `Spalte ${i + 1}`).trim()));
@@ -525,7 +550,27 @@ function mapItems(list) {
       netPrice,
       searchText: normalize(searchValues.join(' '))
     };
-  }).filter(item => item.article || item.model);
+  }).filter(item => isSelectableProduct(item));
+}
+
+function isSelectableProduct(item) {
+  const article = String(item.article || '').trim();
+  if (!article) return false;
+
+  const lower = normalize(article);
+  const excludedPrefixes = [
+    'note', 'standard discount', 'required by', 'approved by',
+    'date', 'signature', 'customer code', 'customer name', 'country',
+    'payment term', 'referenced price list', 'currency', 'credit limit'
+  ];
+  if (excludedPrefixes.some(prefix => lower.startsWith(prefix))) return false;
+
+  // Echte Preislistenpositionen besitzen in diesen Blättern eine Artikelnummer
+  // und mindestens einen verwertbaren Preis. Dadurch werden Fußnoten,
+  // Freigabefelder und Rabatt-Hinweise nicht mehr als Produkte angeboten.
+  if (!(Number(item.listPrice) > 0 || Number(item.netPrice) > 0)) return false;
+
+  return true;
 }
 
 function refreshAll() {
@@ -542,15 +587,15 @@ function refreshAll() {
   searchCard.classList.toggle('hidden', !hasLists);
   offerCard.classList.toggle('hidden', !hasLists);
 
-  if (hasLists && !fileInfo.textContent.includes('gespeichert')) {
+  if (hasLists && !fileInfo.textContent.includes('saved')) {
     const activeCount = state.priceLists.filter(x => x.enabled).length;
-    fileInfo.textContent = `${state.priceLists.length} Preisliste(n) im Browser gespeichert · ${activeCount} aktiv.`;
+    fileInfo.textContent = `${state.priceLists.length} price list(s) saved in the browser · ${activeCount} active.`;
   }
 }
 
 function renderSavedLists() {
   if (!state.priceLists.length) {
-    savedLists.innerHTML = '<div class="empty-box">Noch keine Preislisten gespeichert.</div>';
+    savedLists.innerHTML = '<div class="empty-box">No price lists saved yet.</div>';
     return;
   }
 
@@ -560,14 +605,40 @@ function renderSavedLists() {
         <input type="checkbox" data-enable-list="${escapeAttr(list.id)}" ${list.enabled ? 'checked' : ''} />
         <span>
           <strong>${escapeHtml(list.displayName || list.fileName)}</strong>
-          <small>${escapeHtml(list.sheetName)} · ${list.items.length.toLocaleString('de-DE')} Artikel · ${Object.keys(list.images || {}).length ? `${Object.keys(list.images || {}).length} Bilder` : 'Bilder nach erneutem Import verfügbar'}</small>
+          <small>${escapeHtml(list.sheetName)} · ${list.items.length.toLocaleString('en-GB')} items · ${Object.keys(list.images || {}).length ? `${Object.keys(list.images || {}).length} images` : 'Images available after re-import'}</small>
         </span>
       </label>
       <div class="button-row">
-        <button class="mini-btn" data-edit-list="${escapeAttr(list.id)}">Zuordnung</button>
-        <button class="mini-btn danger-text" data-remove-list="${escapeAttr(list.id)}">Löschen</button>
+        <button class="mini-btn" data-edit-list="${escapeAttr(list.id)}">Mapping</button>
+        <button class="mini-btn danger-text" data-remove-list="${escapeAttr(list.id)}">Delete</button>
       </div>
     </div>
+  `).join('');
+}
+
+function renderSheetToggles() {
+  if (!sheetTogglePanel) return;
+  if (!state.priceLists.length) {
+    sheetTogglePanel.innerHTML = '';
+    return;
+  }
+
+  const preferredOrder = [
+    'HOFMANN 2026', 'OEM', 'Wheel Aligners Accessories',
+    'Wheel Balancers Accessories', 'Tyre Changers Accessories',
+    'Lifts Accessories', 'Induction Heater Accessories'
+  ];
+  const rank = name => {
+    const i = preferredOrder.findIndex(x => normalize(x) === normalize(name));
+    return i === -1 ? 999 : i;
+  };
+  const lists = [...state.priceLists].sort((a,b) => rank(a.sheetName) - rank(b.sheetName) || a.sheetName.localeCompare(b.sheetName));
+
+  sheetTogglePanel.innerHTML = lists.map(list => `
+    <label class="sheet-toggle ${list.enabled ? 'active' : ''}">
+      <input type="checkbox" data-sheet-toggle="${escapeAttr(list.id)}" ${list.enabled ? 'checked' : ''} />
+      <span><strong>${escapeHtml(list.sheetName)}</strong><small>${list.items.length.toLocaleString('en-GB')} Artikel</small></span>
+    </label>
   `).join('');
 }
 
@@ -602,7 +673,7 @@ function renderMapping() {
     ).join('');
   } else {
     sheetSelect.disabled = true;
-    sheetSelect.innerHTML = `<option value="${escapeAttr(list.sheetName)}">${escapeHtml(list.sheetName)} (gespeichert)</option>`;
+    sheetSelect.innerHTML = `<option value="${escapeAttr(list.sheetName)}">${escapeHtml(list.sheetName)} (saved)</option>`;
   }
   sheetSelect.value = list.sheetName;
 
@@ -662,7 +733,7 @@ async function applyMapping() {
   };
 
   if (!mapping.article && !mapping.model) {
-    alert('Bitte mindestens Artikelnummer oder Modell auswählen.');
+    alert('Please select at least Part No. or Model.');
     return;
   }
 
@@ -671,7 +742,7 @@ async function applyMapping() {
   list.savedAt = new Date().toISOString();
   state.offer = state.offer.filter(x => x.listId !== list.id);
   await savePriceList(list);
-  fileInfo.textContent = `Zuordnung für „${list.fileName}“ gespeichert.`;
+  fileInfo.textContent = `Mapping for “${list.fileName}” saved.`;
   refreshAll();
 }
 
@@ -712,7 +783,7 @@ function getSearchMatches() {
 function renderResults() {
   if (!state.priceLists.length) return;
   const matches = getSearchMatches();
-  resultCount.textContent = `${matches.length} Treffer · alle angezeigt`;
+  resultCount.textContent = `${matches.length} results · all shown`;
 
   if (!matches.length) {
     resultsBody.innerHTML = '<tr><td colspan="11" class="empty">Keine passenden Artikel gefunden.</td></tr>';
@@ -725,7 +796,7 @@ function renderResults() {
     return `<tr>
       <td><input class="result-check" type="checkbox" data-offer-uid="${escapeAttr(item.uid)}" ${selected ? 'checked' : ''} /></td>
       <td class="image-cell">${renderProductImage(image, item, false)}</td>
-      <td><span class="source-pill">${escapeHtml(shortFileName(item.source))}</span></td>
+      <td><span class="source-pill">${escapeHtml(item.sourceSheet || shortFileName(item.source))}</span></td>
       <td>${escapeHtml(item.article)}</td>
       <td>${escapeHtml(item.model)}</td>
       <td>${renderRalText(item.color)}</td>
@@ -743,7 +814,7 @@ function quickAddTopResult() {
   if (!normalize(searchInput.value)) return;
   const item = matches[0];
   if (!item) {
-    resultCount.textContent = 'Kein Treffer';
+    resultCount.textContent = 'No results';
     return;
   }
 
@@ -773,7 +844,7 @@ function toggleOffer(uid, checked) {
 
 function renderOffer() {
   if (!state.offer.length) {
-    offerBody.innerHTML = '<tr><td colspan="14" class="empty">Noch keine Positionen ausgewählt.</td></tr>';
+    offerBody.innerHTML = '<tr><td colspan="14" class="empty">No items selected yet.</td></tr>';
     grandTotal.textContent = money(0);
     return;
   }
@@ -841,7 +912,7 @@ function loadExportOptions() {
     const saved = JSON.parse(localStorage.getItem(EXPORT_OPTIONS_KEY) || '{}');
     return { ...DEFAULT_EXPORT_OPTIONS, ...saved };
   } catch (err) {
-    console.warn('Export-Optionen konnten nicht geladen werden.', err);
+    console.warn('Export options could not be loaded.', err);
     return { ...DEFAULT_EXPORT_OPTIONS };
   }
 }
@@ -850,7 +921,7 @@ function saveExportOptions() {
   try {
     localStorage.setItem(EXPORT_OPTIONS_KEY, JSON.stringify(state.exportOptions));
   } catch (err) {
-    console.warn('Export-Optionen konnten nicht gespeichert werden.', err);
+    console.warn('Export options could not be saved.', err);
   }
 }
 
@@ -868,18 +939,18 @@ function excelColumnName(index) {
 function getSelectedExportFields(currency) {
   const definitions = [
     { key: 'position', header: 'Pos.', width: 7 },
-    { key: 'article', header: 'Artikelnummer', width: 24 },
-    { key: 'model', header: 'Modell', width: 34 },
-    { key: 'color', header: 'Farbe / RAL', width: 18 },
+    { key: 'article', header: 'Part No.', width: 24 },
+    { key: 'model', header: 'Model', width: 34 },
+    { key: 'color', header: 'Colour / RAL', width: 18 },
     { key: 'family', header: 'Family / Gruppe', width: 24 },
-    { key: 'qty', header: 'Menge', width: 10 },
+    { key: 'qty', header: 'Qty', width: 10 },
     { key: 'listPrice', header: `List Price ${currency}`, width: 18, numberFormat: '#,##0.00' },
     { key: 'priceListDiscount', header: 'Discount', width: 14, numberFormat: '0.00%' },
     { key: 'netPrice', header: `Net Price ${currency}`, width: 18, numberFormat: '#,##0.00' },
     { key: 'extraDiscount', header: 'Second Discount', width: 18, numberFormat: '0.00%' },
-    { key: 'finalUnitPrice', header: `Angebot/Stk. ${currency}`, width: 20, numberFormat: '#,##0.00' },
+    { key: 'finalUnitPrice', header: `Quote/Unit ${currency}`, width: 20, numberFormat: '#,##0.00' },
     { key: 'total', header: `Gesamt ${currency}`, width: 18, numberFormat: '#,##0.00' },
-    { key: 'source', header: 'Preisliste / Quelle', width: 24 }
+    { key: 'source', header: 'Price List / Source', width: 24 }
   ];
   return definitions.filter(field => state.exportOptions[field.key]);
 }
@@ -905,7 +976,7 @@ function buildFinalUnitFormula(item, rowNum, colByKey) {
 
 function exportOffer() {
   if (!state.offer.length) {
-    alert('Bitte zuerst mindestens eine Position auswählen.');
+    alert('Please select at least one item first.');
     return;
   }
 
@@ -914,7 +985,7 @@ function exportOffer() {
   const currency = el('currency').value;
   const fields = getSelectedExportFields(currency);
   if (!fields.length) {
-    alert('Bitte in den Optionen mindestens eine Spalte für die Excel-Übertragung aktivieren.');
+    alert('Please enable at least one column in the Excel export options.');
     return;
   }
 
@@ -935,13 +1006,13 @@ function exportOffer() {
   const metaRightValueIndex = metaRightLabelIndex + 1;
   const metaRow3 = Array(sheetColumnCount).fill('');
   const metaRow4 = Array(sheetColumnCount).fill('');
-  metaRow3[0] = 'Kunde';
+  metaRow3[0] = 'Customer';
   metaRow3[1] = customer;
-  metaRow3[metaRightLabelIndex] = 'Angebotsnummer';
+  metaRow3[metaRightLabelIndex] = 'Quotation No.';
   metaRow3[metaRightValueIndex] = offerNo;
   metaRow4[0] = 'Datum';
   metaRow4[1] = dateText;
-  metaRow4[metaRightLabelIndex] = 'Währung';
+  metaRow4[metaRightLabelIndex] = 'Currency';
   metaRow4[metaRightValueIndex] = currency;
 
   const aoa = [
@@ -1072,17 +1143,17 @@ function exportOffer() {
   });
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Angebot');
+  XLSX.utils.book_append_sheet(wb, ws, 'Quotation');
   wb.Props = {
-    Title: offerNo ? `Angebot ${offerNo}` : 'Angebot',
-    Subject: customer ? `Angebot für ${customer}` : 'Angebot',
-    Author: 'Preislisten-Analyzer',
+    Title: offerNo ? `Quotation ${offerNo}` : 'Quotation',
+    Subject: customer ? `Quotation for ${customer}` : 'Quotation',
+    Author: 'Price List Analyzer',
     CreatedDate: today
   };
 
   const safeCustomer = customer ? `_${safeFile(customer)}` : '';
   const safeNo = offerNo ? `_${safeFile(offerNo)}` : '';
-  XLSX.writeFile(wb, `Angebot${safeCustomer}${safeNo}.xlsx`);
+  XLSX.writeFile(wb, `Quotation${safeCustomer}${safeNo}.xlsx`);
 }
 
 
@@ -1131,10 +1202,10 @@ function saveDraft(showMessage = false) {
   try {
     localStorage.setItem(DRAFT_KEY, JSON.stringify(getDraftPayload()));
     updateDraftStatus();
-    if (showMessage) draftStatus.textContent = 'Entwurf gespeichert';
+    if (showMessage) draftStatus.textContent = 'Draft saved';
   } catch (err) {
-    console.warn('Entwurf konnte nicht gespeichert werden.', err);
-    if (showMessage) alert('Der Entwurf konnte im Browser nicht gespeichert werden.');
+    console.warn('Draft could not be saved.', err);
+    if (showMessage) alert('The draft could not be saved in the browser.');
   }
 }
 
@@ -1146,7 +1217,7 @@ function loadDraft() {
   let draft;
   try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (_) { draft = null; }
   if (!draft) {
-    alert('Es ist noch kein gespeicherter Angebotsentwurf vorhanden.');
+    alert('There is no saved quotation draft yet.');
     return;
   }
   state.offer = Array.isArray(draft.offer) ? draft.offer.map(item => {
@@ -1164,7 +1235,7 @@ function loadDraft() {
 
 function newOffer() {
   const hasContent = state.offer.length || el('customerName').value.trim() || el('offerNumber').value.trim();
-  if (hasContent && !confirm('Aktuelles Angebot leeren und ein neues Angebot beginnen?')) return;
+  if (hasContent && !confirm('Clear the current quotation and start a new one?')) return;
   state.offer = [];
   el('customerName').value = '';
   el('offerDate').value = localDateInputValue(new Date());
@@ -1180,13 +1251,13 @@ function updateDraftStatus() {
   let draft;
   try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (_) { draft = null; }
   if (!draft?.savedAt) {
-    draftStatus.textContent = 'Noch kein Entwurf gespeichert';
+    draftStatus.textContent = 'No draft saved yet';
     return;
   }
   const saved = new Date(draft.savedAt);
   const time = saved.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   const count = Array.isArray(draft.offer) ? draft.offer.length : 0;
-  draftStatus.textContent = `Automatisch gespeichert · ${time} · ${count} Pos.`;
+  draftStatus.textContent = `Auto-saved · ${time} · ${count} items`;
 }
 
 function localDateInputValue(date) {
@@ -1229,13 +1300,13 @@ function renderFilters() {
   sourceFilter.dataset.settingKey = 'source';
   familyFilter.dataset.settingKey = 'family';
   colorFilter.dataset.settingKey = 'color';
-  fillFilterSelect(sourceFilter, sourceOptions, 'Alle Preislisten', state.searchSettings.source);
+  fillFilterSelect(sourceFilter, sourceOptions, 'All price lists', state.searchSettings.source);
 
   const baseItems = allSearchItems().filter(item => !state.searchSettings.source || item.listId === state.searchSettings.source);
   const families = uniqueSorted(baseItems.map(item => item.family).filter(Boolean)).map(v => ({ value: v, label: v }));
   const colors = uniqueSorted(baseItems.map(item => item.color).filter(Boolean)).map(v => ({ value: v, label: v }));
-  fillFilterSelect(familyFilter, families, 'Alle Families', state.searchSettings.family);
-  fillFilterSelect(colorFilter, colors, 'Alle Farben', state.searchSettings.color);
+  fillFilterSelect(familyFilter, families, 'All families', state.searchSettings.family);
+  fillFilterSelect(colorFilter, colors, 'All colours', state.searchSettings.color);
 
 }
 
@@ -1273,15 +1344,15 @@ function getItemImage(item) {
 }
 
 function renderProductImage(src, item, compact) {
-  if (!src) return `<span class="image-placeholder ${compact ? 'offer-placeholder' : ''}">kein Bild</span>`;
+  if (!src) return `<span class="image-placeholder ${compact ? 'offer-placeholder' : ''}">no image</span>`;
   const caption = [item.article, item.model].filter(Boolean).join(' · ');
-  return `<img class="product-thumb ${compact ? 'offer-thumb' : ''}" loading="lazy" src="${escapeAttr(src)}" alt="${escapeAttr(caption || 'Produktbild')}" data-image-preview="1" data-image-caption="${escapeAttr(caption)}" />`;
+  return `<img class="product-thumb ${compact ? 'offer-thumb' : ''}" loading="lazy" src="${escapeAttr(src)}" alt="${escapeAttr(caption || 'Product image')}" data-image-preview="1" data-image-caption="${escapeAttr(caption)}" />`;
 }
 
 function openImagePreview(src, caption) {
   if (!src || !imageDialog) return;
   imageDialogImg.src = src;
-  imageDialogCaption.textContent = caption || 'Produktbild';
+  imageDialogCaption.textContent = caption || 'Product image';
   imageDialog.showModal();
 }
 
@@ -1328,7 +1399,7 @@ function renderRalSwatches(text) {
   return `<span class="ral-swatches ral-swatches-large">${codes.map(code => {
     const hex = RAL_HEX[code];
     return hex
-      ? `<span class="ral-swatch ral-swatch-large" style="background:${hex}" title="RAL ${code} · Bildschirm-Näherung"></span>`
+      ? `<span class="ral-swatch ral-swatch-large" style="background:${hex}" title="RAL ${code} · screen approximation"></span>`
       : `<span class="ral-swatch ral-swatch-large ral-unknown" title="RAL ${code}">?</span>`;
   }).join('')}</span>`;
 }
@@ -1430,7 +1501,7 @@ async function extractImagesForSheet(arrayBuffer, sheetName) {
     }
     return { images, rowToImageId };
   } catch (err) {
-    console.warn('Produktbilder konnten aus dieser Datei nicht gelesen werden.', err);
+    console.warn('Product images could not be read from this file.', err);
     return empty;
   }
 }
@@ -1450,12 +1521,12 @@ function resolveZipPath(baseFile, target) {
 
 async function clearAllLists() {
   if (!state.priceLists.length) return;
-  if (!confirm('Alle lokal gespeicherten Preislisten löschen?')) return;
+  if (!confirm('Delete all locally saved price lists?')) return;
   await clearPriceListStore();
   state.priceLists = [];
   state.activeListId = null;
   state.offer = [];
-  fileInfo.textContent = 'Alle gespeicherten Preislisten wurden gelöscht.';
+  fileInfo.textContent = 'All saved price lists were deleted.';
   refreshAll();
 }
 
@@ -1504,7 +1575,7 @@ async function savePriceList(list) {
     db.close();
   } catch (err) {
     console.error(err);
-    alert('Die Preisliste konnte nicht dauerhaft im Browser gespeichert werden. Möglicherweise ist der lokale Speicher voll.');
+    alert('The price list could not be saved permanently in the browser. Local storage may be full.');
   }
 }
 
