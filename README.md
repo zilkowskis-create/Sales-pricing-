@@ -1,9 +1,10 @@
-# Price List Analyzer V19
+# Price List Analyzer V20
 
-## V19 changes
-- Removed the **Price List** column from the product table.
-- Added editable **Second Discount %** directly in the product table.
-- Added editable **Units** directly in the product table.
-- Added live **Total** calculation: `Net Price × (1 - Second Discount) × Units`.
-- Editing Second Discount or Units automatically adds the product to the quotation.
-- Existing image, RAL/colour, single-sheet tabs, filters, draft and Excel export functions remain available.
+Fixes the V19 loading issue caused by stale cache references.
+
+## V20 fixes
+- `index.html` now loads `styles.css?v=20` and `app.js?v=20`.
+- Product table remains: Select, Image, Part No., Model, RAL, Colour, Family, List Price, Discount, Net Price, Second Discount, Units, Total.
+- Price List column remains removed.
+- Second Discount and Units stay editable directly in the product table.
+- Existing sheet tabs, images, filters, drafts and Excel export remain available.
