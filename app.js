@@ -257,28 +257,48 @@ async function handleFiles(event) {
       const wb = XLSX.read(data, { type: 'array', cellDates: true });
       if (!wb.SheetNames.length) throw new Error('Keine Tabellenblätter gefunden.');
 
-      const id = makeListId(file);
-      const bestSheet = detectBestSheet(wb);
-      const extractedImages = await extractImagesForSheet(data, bestSheet);
-      const existingIndex = state.priceLists.findIndex(x => x.id === id);
-      const list = buildPriceListFromSheet({
-        id,
-        fileName: file.name,
-        fileSize: file.size,
-        lastModified: file.lastModified,
-        workbook: wb,
-        sourceData: data,
-        images: extractedImages.images,
-        imageRowMap: extractedImages.rowToImageId,
-        enabled: existingIndex >= 0 ? state.priceLists[existingIndex].enabled : true
-      }, bestSheet);
+      const parentFileId = makeListId(file);
+      const productSheets = detectProductSheets(wb);
+      if (!productSheets.length) productSheets.push(detectBestSheet(wb));
 
-      if (existingIndex >= 0) state.priceLists.splice(existingIndex, 1, list);
-      else state.priceLists.push(list);
+      // Alte Einträge derselben Datei entfernen. V10 speichert jedes echte
+      // Preislisten-Blatt separat, damit wirklich alle Positionen durchsuchbar sind.
+      const previous = state.priceLists.filter(x => x.parentFileId === parentFileId || x.id === parentFileId);
+      const previousEnabled = previous.length ? previous.some(x => x.enabled) : true;
+      for (const oldList of previous) await deletePriceList(oldList.id);
+      state.priceLists = state.priceLists.filter(x => !(x.parentFileId === parentFileId || x.id === parentFileId));
+      state.offer = state.offer.filter(x => !(previous.some(p => p.id === x.listId)));
 
-      await savePriceList(list);
-      state.activeListId = list.id;
+      let lastList = null;
+      for (const sheetName of productSheets) {
+        const extractedImages = await extractImagesForSheet(data, sheetName);
+        const sheetId = `${parentFileId}::sheet::${sheetName}`;
+        const list = buildPriceListFromSheet({
+          id: sheetId,
+          parentFileId,
+          fileName: file.name,
+          displayName: `${file.name} · ${sheetName}`,
+          fileSize: file.size,
+          lastModified: file.lastModified,
+          workbook: wb,
+          sourceData: data,
+          images: extractedImages.images,
+          imageRowMap: extractedImages.rowToImageId,
+          enabled: previousEnabled,
+          lockToSheet: true
+        }, sheetName);
+
+        // Nur Blätter mit tatsächlich erkannten Artikeln speichern.
+        if (!list.items.length) continue;
+        state.priceLists.push(list);
+        await savePriceList(list);
+        lastList = list;
+      }
+
+      if (!lastList) throw new Error('Keine Produktpositionen in der Datei erkannt.');
+      state.activeListId = lastList.id;
       imported++;
+      fileInfo.textContent = `${file.name}: ${productSheets.length} Preislisten-Blätter erkannt.`;
     } catch (err) {
       console.error(file.name, err);
       errors++;
@@ -317,6 +337,45 @@ function buildPriceListFromSheet(base, sheetName) {
   };
   list.items = mapItems(list);
   return list;
+}
+
+function detectProductSheets(wb) {
+  const excluded = ['languages', 'terms conditions', 'terms & conditions', 'db equipment', 'db accessori', 'db accessories'];
+  const matches = [];
+
+  for (const name of wb.SheetNames) {
+    const normalizedName = normalize(name);
+    if (excluded.some(x => normalizedName === normalize(x))) continue;
+
+    const ws = wb.Sheets[name];
+    if (!ws?.['!ref']) continue;
+    const decoded = XLSX.utils.decode_range(ws['!ref']);
+    const previewRange = XLSX.utils.encode_range({
+      s: { r: decoded.s.r, c: decoded.s.c },
+      e: { r: Math.min(decoded.s.r + 39, decoded.e.r), c: Math.min(decoded.s.c + 30, decoded.e.c) }
+    });
+    const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false, range: previewRange });
+    if (!matrix.length) continue;
+
+    const headerInfo = detectHeaderRow(matrix);
+    const headerRow = matrix[headerInfo.index] || [];
+    const headers = makeUniqueHeaders(headerRow.map((v, i) => String(v || `Spalte ${i + 1}`).trim()));
+    const mapping = autoDetectMapping(headers);
+
+    // Ein echtes Angebotsblatt braucht mindestens Artikelnummer + Preis.
+    // Net Price oder Discount dürfen alternativ vorhanden sein.
+    if (!mapping.article || !mapping.listPrice || (!mapping.netPrice && !mapping.priceListDiscount)) continue;
+
+    const fullMatrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+    const articleIndex = headers.indexOf(mapping.article);
+    let articleRows = 0;
+    for (const row of fullMatrix.slice(headerInfo.index + 1)) {
+      if (String(row[articleIndex] ?? '').trim()) articleRows++;
+      if (articleRows >= 2) break;
+    }
+    if (articleRows >= 2) matches.push(name);
+  }
+  return matches;
 }
 
 function detectBestSheet(wb) {
@@ -390,9 +449,9 @@ function makeUniqueHeaders(headers) {
 function autoDetectMapping(headers) {
   return {
     article: findHeader(headers, ['p/n', 'pn', 'artikelnummer', 'artikelnr', 'artikel nr', 'article number', 'article no', 'item number', 'item no', 'part number', 'part no', 'material number', 'material', 'sku', 'code']) || '',
-    model: findHeader(headers, ['model', 'bezeichnung', 'artikelbezeichnung', 'product name', 'produkt', 'product', 'name']) || '',
+    model: findHeader(headers, ['model', 'item', 'bezeichnung', 'artikelbezeichnung', 'product name', 'produkt', 'product', 'name']) || '',
     listPrice: findHeader(headers, ['list price', 'listenpreis', 'gross price', 'bruttopreis']) || findHeader(headers, ['price', 'preis']) || '',
-    priceListDiscount: findHeader(headers, ['discount', 'rabatt', 'price list discount', 'preislistenrabatt']) || '',
+    priceListDiscount: findHeader(headers, ['discount', 'disc. 1', 'disc 1', 'discount 1', 'rabatt', 'price list discount', 'preislistenrabatt']) || '',
     netPrice: findHeader(headers, ['net price', 'nettopreis', 'net price euro', 'net']) || '',
     family: findHeader(headers, ['family', 'familie', 'product type', 'produktgruppe', 'category', 'kategorie']) || '',
     color: findHeader(headers, ['color', 'colour', 'farbe', 'ral', 'farbton']) || ''
@@ -453,7 +512,9 @@ function mapItems(list) {
       listId: list.id,
       rowIndex: index,
       excelRow,
-      source: list.fileName,
+      source: list.displayName || `${list.fileName} · ${list.sheetName}`,
+      sourceFile: list.fileName,
+      sourceSheet: list.sheetName,
       article,
       model,
       family,
@@ -498,7 +559,7 @@ function renderSavedLists() {
       <label class="saved-list-main">
         <input type="checkbox" data-enable-list="${escapeAttr(list.id)}" ${list.enabled ? 'checked' : ''} />
         <span>
-          <strong>${escapeHtml(list.fileName)}</strong>
+          <strong>${escapeHtml(list.displayName || list.fileName)}</strong>
           <small>${escapeHtml(list.sheetName)} · ${list.items.length.toLocaleString('de-DE')} Artikel · ${Object.keys(list.images || {}).length ? `${Object.keys(list.images || {}).length} Bilder` : 'Bilder nach erneutem Import verfügbar'}</small>
         </span>
       </label>
@@ -512,7 +573,7 @@ function renderSavedLists() {
 
 function renderPriceListSelector() {
   priceListSelect.innerHTML = state.priceLists.map(list =>
-    `<option value="${escapeAttr(list.id)}">${escapeHtml(list.fileName)}</option>`
+    `<option value="${escapeAttr(list.id)}">${escapeHtml(list.displayName || list.fileName)}</option>`
   ).join('');
   if (state.activeListId && state.priceLists.some(x => x.id === state.activeListId)) {
     priceListSelect.value = state.activeListId;
@@ -534,7 +595,7 @@ function renderMapping() {
   const list = getActiveList();
   if (!list) return;
 
-  if (list.workbook) {
+  if (list.workbook && !list.lockToSheet) {
     sheetSelect.disabled = false;
     sheetSelect.innerHTML = list.workbook.SheetNames.map(name =>
       `<option value="${escapeAttr(name)}">${escapeHtml(name)}</option>`
