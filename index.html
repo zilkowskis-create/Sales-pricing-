@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Price List Analyzer & Quote Generator</title>
-  <link rel="stylesheet" href="styles.css?v=22" />
+  <link rel="stylesheet" href="styles.css?v=21" />
+  <link rel="stylesheet" href="enhancements-v23.css?v=23" />
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 </head>
@@ -14,7 +15,7 @@
       <h1>Price List Analyzer</h1>
       <p>Search multiple price lists and automatically transfer selected items into an Excel quotation.</p>
     </div>
-    <div class="badge">V22 · Description tooltip</div>
+    <div class="badge">V23 · Reorder quotation items</div>
   </header>
 
   <main class="container">
@@ -49,6 +50,7 @@
         <label>Price list sheet<select id="sheetSelect"></select></label>
         <label>Part No.<select id="articleCol"></select></label>
         <label>Model / short description<select id="modelCol"></select></label>
+        <label>Description (tooltip)<select id="descriptionCol"></select></label>
         <label>List Price<select id="listPriceCol"></select></label>
         <label>Price list discount<select id="priceListDiscountCol"></select></label>
         <label>Net Price<select id="netPriceCol"></select></label>
@@ -130,7 +132,7 @@
       <div class="section-head">
         <div>
           <h2>4. Create quotation</h2>
-          <p class="muted">Set quantity and Second Discount. All selected products are then transferred automatically into an Excel quotation file.</p>
+          <p class="muted">Set quantity and Second Discount. Drag selected rows or use ↑ / ↓ to change their position before creating the Excel quotation.</p>
         </div>
         <div class="button-row">
           <button id="clearOfferBtn" class="ghost-btn">Clear selection</button>
@@ -230,7 +232,7 @@
     <p>Price List Analyzer · Price lists and processing remain local in this browser</p>
   </footer>
 
-  <script src="app.js?v=22"></script>
-  <script src="v22-patch.js?v=22"></script>
+  <script src="app.js?v=21"></script>
+  <script src="enhancements-v23.js?v=23"></script>
 </body>
 </html>
