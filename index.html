@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Price List Analyzer & Quote Generator</title>
-  <link rel="stylesheet" href="styles.css?v=21" />
+  <link rel="stylesheet" href="styles.css?v=22" />
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 </head>
@@ -14,7 +14,7 @@
       <h1>Price List Analyzer</h1>
       <p>Search multiple price lists and automatically transfer selected items into an Excel quotation.</p>
     </div>
-    <div class="badge">V21 · Full width & clean price list manager</div>
+    <div class="badge">V22 · Description tooltip</div>
   </header>
 
   <main class="container">
@@ -110,6 +110,7 @@
               <th>Part No.</th>
               <th>Model</th>
               <th>RAL</th>
+              <th class="info-head" title="Description">ⓘ</th>
               <th>Colour</th>
               <th>Family</th>
               <th class="num">List Price</th>
@@ -229,6 +230,7 @@
     <p>Price List Analyzer · Price lists and processing remain local in this browser</p>
   </footer>
 
-  <script src="app.js?v=21"></script>
+  <script src="app.js?v=22"></script>
+  <script src="v22-patch.js?v=22"></script>
 </body>
 </html>
