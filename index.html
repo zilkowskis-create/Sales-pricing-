@@ -8,6 +8,36 @@
   <link rel="stylesheet" href="enhancements-v23.css?v=23" />
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+
+  <style>
+    .update-banner {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin: 0;
+      padding: 10px 18px;
+      background: #fff7d6;
+      border-bottom: 1px solid #f0d879;
+      color: #5c4a00;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .update-banner.visible { display: flex; }
+    .update-banner button {
+      border: 0;
+      border-radius: 9px;
+      padding: 8px 12px;
+      background: #1f5eff;
+      color: white;
+      font-weight: 800;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    @media (max-width: 700px) {
+      .update-banner { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
 </head>
 <body>
   <header class="topbar">
@@ -15,8 +45,12 @@
       <h1>Price List Analyzer</h1>
       <p>Search multiple price lists and automatically transfer selected items into an Excel quotation.</p>
     </div>
-    <div class="badge">V23 · Reorder quotation items</div>
+    <div class="badge">V24 · Update notifications</div>
   </header>
+  <div id="updateBanner" class="update-banner" role="status" aria-live="polite">
+    <span id="updateMessage">A new version is available.</span>
+    <button id="updateReloadBtn" type="button">Load update</button>
+  </div>
 
   <main class="container">
     <section class="card upload-card">
@@ -234,5 +268,39 @@
 
   <script src="app.js?v=21"></script>
   <script src="enhancements-v23.js?v=23"></script>
+
+  <script>
+    (() => {
+      const CURRENT_VERSION = 24;
+      const banner = document.getElementById('updateBanner');
+      const message = document.getElementById('updateMessage');
+      const reloadBtn = document.getElementById('updateReloadBtn');
+
+      async function checkForUpdate() {
+        try {
+          const response = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+          if (!response.ok) return;
+          const info = await response.json();
+          const latest = Number(info.version || 0);
+          if (latest > CURRENT_VERSION) {
+            message.textContent = `Update available – V${latest}${info.label ? ` · ${info.label}` : ''}`;
+            banner.classList.add('visible');
+          }
+        } catch (err) {
+          console.warn('Update check failed.', err);
+        }
+      }
+
+      reloadBtn.addEventListener('click', () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('update', Date.now().toString());
+        window.location.replace(url.toString());
+      });
+
+      checkForUpdate();
+      window.addEventListener('focus', checkForUpdate);
+      setInterval(checkForUpdate, 15 * 60 * 1000);
+    })();
+  </script>
 </body>
 </html>
