@@ -1,0 +1,39 @@
+/* V23 enhancements: description tooltip + quotation item reordering */
+.description-info-cell,
+.info-head { text-align: center; width: 42px; min-width: 42px; }
+.description-tooltip { position: relative; display: inline-flex; align-items: center; justify-content: center; outline: none; }
+.info-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 999px;
+  border: 1px solid #9db0c8; background: #f5f8fc; color: #31506f;
+  font-size: 13px; font-weight: 800; font-family: Georgia, serif; cursor: help;
+}
+.info-icon-empty { opacity: .35; cursor: default; }
+.description-tooltip-content {
+  position: absolute; z-index: 100; left: 50%; top: calc(100% + 10px);
+  transform: translateX(-50%) translateY(-4px); width: min(460px, 76vw); max-height: 260px; overflow: auto;
+  padding: 12px 14px; border-radius: 10px; background: #111827; color: #fff;
+  box-shadow: 0 12px 34px rgba(15,23,42,.28); font-size: 13px; line-height: 1.45;
+  text-align: left; white-space: normal; opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity .12s ease, transform .12s ease, visibility .12s ease;
+}
+.description-tooltip:hover .description-tooltip-content,
+.description-tooltip:focus .description-tooltip-content,
+.description-tooltip:focus-within .description-tooltip-content {
+  opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0);
+}
+.offer-position-cell-v23 { min-width: 118px; white-space: nowrap; }
+.drag-handle-v23 {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 22px;
+  margin-right: 5px; color: #778397; font-size: 18px; line-height: 1; cursor: grab; user-select: none;
+}
+.position-number-v23 { display: inline-block; min-width: 20px; text-align: center; }
+.position-buttons-v23 { display: inline-flex; gap: 3px; margin-left: 5px; }
+.position-btn-v23 {
+  width: 25px; height: 25px; padding: 0; border: 1px solid #d8e0eb; border-radius: 6px;
+  background: #fff; color: #334155; font-weight: 800; cursor: pointer;
+}
+.position-btn-v23:hover:not(:disabled) { background: #edf3ff; border-color: #9cb8ff; color: #1d4ed8; }
+.position-btn-v23:disabled { opacity: .28; cursor: default; }
+.reorderable-offer-row.dragging-v23 { opacity: .45; }
+.reorderable-offer-row.drag-over-v23 td { background: #eef4ff; }
