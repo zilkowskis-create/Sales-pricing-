@@ -113,6 +113,7 @@
     for (const row of rows) {
       const input = row.querySelector('[data-offer-uid]');
       const remove = row.querySelector('[data-remove-offer]');
+      if (remove && remove.textContent.trim() !== 'Remove') remove.textContent = 'Remove';
       const uid = input?.dataset.offerUid || remove?.dataset.removeOffer;
       if (!uid || !row.children.length) continue;
       row.draggable = true;
