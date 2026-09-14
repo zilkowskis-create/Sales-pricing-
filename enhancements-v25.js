@@ -127,7 +127,7 @@
   }
 
   function esc(v) {
-    return String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
+    return String(v ?? '').replace(/[&<>'\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','\"':'&quot;'}[c]));
   }
 
   function renderLibrary(status='') {
@@ -196,8 +196,43 @@
     renderLibrary();
   }
 
+  function makeExcelExportEnglish() {
+    if (!window.XLSX || typeof window.XLSX.writeFile !== 'function' || window.XLSX.writeFile.__englishExportPatch) return;
+    const originalWriteFile = window.XLSX.writeFile;
+    const patchedWriteFile = function(workbook, filename, options) {
+      try {
+        const sheetNames = workbook?.SheetNames || [];
+        for (const sheetName of sheetNames) {
+          const ws = workbook?.Sheets?.[sheetName];
+          if (!ws) continue;
+          for (const key of Object.keys(ws)) {
+            if (key.startsWith('!')) continue;
+            const cell = ws[key];
+            if (!cell || typeof cell.v !== 'string') continue;
+            const original = cell.v;
+            let translated = original;
+            if (original === 'ANGEBOT' || original === 'Angebot') translated = 'QUOTATION';
+            else if (original === 'GESAMTSUMME' || original === 'Gesamtsumme') translated = 'GRAND TOTAL';
+            else if (original === 'Datum') translated = 'Date';
+            else if (/^Gesamt(?:\s|$)/i.test(original)) translated = original.replace(/^Gesamt/i, 'Total');
+            if (translated !== original) {
+              cell.v = translated;
+              if ('w' in cell) cell.w = translated;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Could not translate Excel export labels.', err);
+      }
+      return originalWriteFile.call(this, workbook, filename, options);
+    };
+    patchedWriteFile.__englishExportPatch = true;
+    window.XLSX.writeFile = patchedWriteFile;
+  }
+
   function init() {
     installUi();
+    makeExcelExportEnglish();
     setTimeout(renderLibrary, 200);
   }
 
