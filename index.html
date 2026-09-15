@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="enhancements-v27.css?v=27" />
   <link rel="stylesheet" href="enhancements-v28.css?v=28" />
   <link rel="stylesheet" href="enhancements-v29.css?v=29" />
+  <link rel="stylesheet" href="enhancements-v31.css?v=31" />
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
@@ -23,7 +24,7 @@
 <body>
   <header class="topbar">
     <div><h1>Sales Pricing</h1><p>Quotation & Pricing Tool</p></div>
-    <div class="badge">V30 · Reliable updates</div>
+    <div class="badge">V31 · Table alignment</div>
   </header>
   <div id="updateBanner" class="update-banner" role="status" aria-live="polite"><span id="updateMessage">A new version is available.</span><button id="updateReloadBtn" type="button">Load update</button></div>
 
@@ -67,9 +68,10 @@
   <script src="enhancements-v27.js?v=27"></script>
   <script src="enhancements-v28.js?v=28"></script>
   <script src="enhancements-v29.js?v=29"></script>
+  <script src="enhancements-v31.js?v=31"></script>
   <script>
     (()=>{
-      const CURRENT_VERSION=30;
+      const CURRENT_VERSION=31;
       const banner=document.getElementById('updateBanner');
       const message=document.getElementById('updateMessage');
       const reloadBtn=document.getElementById('updateReloadBtn');
