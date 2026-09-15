@@ -2,6 +2,20 @@
   'use strict';
 
   const IMAGE_OPTION_KEY = 'includeProductImages';
+  let excelJsPromise = null;
+
+  function loadExcelJs() {
+    if (typeof ExcelJS !== 'undefined') return Promise.resolve();
+    if (excelJsPromise) return excelJsPromise;
+    excelJsPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('ExcelJS could not be loaded.'));
+      document.head.appendChild(script);
+    });
+    return excelJsPromise;
+  }
 
   function ensureImageOption() {
     if (typeof state === 'undefined') return;
@@ -10,9 +24,7 @@
     if (!grid || grid.querySelector('[data-export-option="includeProductImages"]')) return;
     const label = document.createElement('label');
     label.className = 'export-option';
-    label.innerHTML = `
-      <input type="checkbox" data-export-option="includeProductImages" ${state.exportOptions.includeProductImages ? 'checked' : ''} />
-      <span>Include product images</span>`;
+    label.innerHTML = `<input type="checkbox" data-export-option="includeProductImages" ${state.exportOptions.includeProductImages ? 'checked' : ''} /><span>Include product images</span>`;
     grid.appendChild(label);
   }
 
@@ -20,7 +32,7 @@
     const grid = document.getElementById('exportOptionsGrid');
     if (!grid) return;
     ensureImageOption();
-    new MutationObserver(() => ensureImageOption()).observe(grid, { childList: true });
+    new MutationObserver(ensureImageOption).observe(grid, { childList: true });
   }
 
   function colName(index) {
@@ -63,33 +75,23 @@
   }
 
   async function exportWithImages() {
-    if (!state.offer.length) {
-      alert('Please select at least one item first.');
-      return;
-    }
-    if (typeof ExcelJS === 'undefined') {
-      alert('The image export module could not be loaded. Please reload the page and try again.');
-      return;
-    }
+    if (!state.offer.length) { alert('Please select at least one item first.'); return; }
+    await loadExcelJs();
 
     const customer = document.getElementById('customerName').value.trim();
     const offerNo = document.getElementById('offerNumber').value.trim();
     const currency = document.getElementById('currency').value;
     const offerDate = document.getElementById('offerDate').value || '';
     const fields = exportFields(currency);
-    if (!fields.length) {
-      alert('Please enable at least one Excel column.');
-      return;
-    }
+    if (!fields.length) { alert('Please enable at least one Excel column.'); return; }
 
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'Sales Pricing';
     workbook.created = new Date();
     const ws = workbook.addWorksheet('Quotation', { views: [{ state: 'frozen', ySplit: 8 }] });
-
-    const imageOffset = 1;
-    const dataStartCol = imageOffset + 1;
+    const dataStartCol = 2;
     const lastCol = dataStartCol + fields.length - 1;
+
     ws.mergeCells(1, 1, 1, lastCol);
     const title = ws.getCell(1, 1);
     title.value = 'QUOTATION';
@@ -98,68 +100,45 @@
     title.alignment = { vertical: 'middle', horizontal: 'left' };
     ws.getRow(1).height = 28;
 
-    ws.getCell(3, 1).value = 'Customer';
-    ws.getCell(3, 2).value = customer;
-    ws.getCell(3, Math.max(3, lastCol - 1)).value = 'Quotation No.';
-    ws.getCell(3, Math.max(4, lastCol)).value = offerNo;
-    ws.getCell(4, 1).value = 'Date';
-    ws.getCell(4, 2).value = offerDate;
-    ws.getCell(4, Math.max(3, lastCol - 1)).value = 'Currency';
-    ws.getCell(4, Math.max(4, lastCol)).value = currency;
+    ws.getCell(3, 1).value = 'Customer'; ws.getCell(3, 2).value = customer;
+    ws.getCell(3, Math.max(3, lastCol - 1)).value = 'Quotation No.'; ws.getCell(3, Math.max(4, lastCol)).value = offerNo;
+    ws.getCell(4, 1).value = 'Date'; ws.getCell(4, 2).value = offerDate;
+    ws.getCell(4, Math.max(3, lastCol - 1)).value = 'Currency'; ws.getCell(4, Math.max(4, lastCol)).value = currency;
 
-    const headerRow = 8;
-    const firstDataRow = 9;
+    const headerRow = 8, firstDataRow = 9;
     ws.getCell(headerRow, 1).value = 'Image';
-    fields.forEach((field, i) => ws.getCell(headerRow, dataStartCol + i).value = field.header);
+    fields.forEach((f, i) => ws.getCell(headerRow, dataStartCol + i).value = f.header);
     for (let c = 1; c <= lastCol; c++) {
       const cell = ws.getCell(headerRow, c);
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-      cell.border = {
-        top: { style: 'thin', color: { argb: 'FFD9E2F3' } },
-        bottom: { style: 'thin', color: { argb: 'FFD9E2F3' } },
-        left: { style: 'thin', color: { argb: 'FFD9E2F3' } },
-        right: { style: 'thin', color: { argb: 'FFD9E2F3' } }
-      };
     }
-
     ws.getColumn(1).width = 14;
-    fields.forEach((field, i) => ws.getColumn(dataStartCol + i).width = field.width || 18);
+    fields.forEach((f, i) => ws.getColumn(dataStartCol + i).width = f.width || 18);
 
     const keyToCol = Object.fromEntries(fields.map((f, i) => [f.key, dataStartCol + i]));
+    const border = {
+      top: { style: 'thin', color: { argb: 'FFD9E2F3' } }, bottom: { style: 'thin', color: { argb: 'FFD9E2F3' } },
+      left: { style: 'thin', color: { argb: 'FFD9E2F3' } }, right: { style: 'thin', color: { argb: 'FFD9E2F3' } }
+    };
 
     state.offer.forEach((item, idx) => {
       const rowNo = firstDataRow + idx;
-      const row = ws.getRow(rowNo);
-      row.height = 62;
-
+      ws.getRow(rowNo).height = 62;
       const finalUnit = Number(item.netPrice || 0) * (1 - Number(item.extraDiscount || 0) / 100);
       fields.forEach((field, i) => {
         const cell = ws.getCell(rowNo, dataStartCol + i);
-        switch (field.key) {
-          case 'position': cell.value = idx + 1; break;
-          case 'article': cell.value = item.article || ''; break;
-          case 'model': cell.value = item.model || ''; break;
-          case 'color': cell.value = item.color || ''; break;
-          case 'family': cell.value = item.family || ''; break;
-          case 'qty': cell.value = Number(item.qty || 1); break;
-          case 'listPrice': cell.value = Number(item.listPrice || 0); break;
-          case 'priceListDiscount': cell.value = Number(item.priceListDiscount || 0) / 100; break;
-          case 'netPrice': cell.value = Number(item.netPrice || 0); break;
-          case 'extraDiscount': cell.value = Number(item.extraDiscount || 0) / 100; break;
-          case 'finalUnitPrice': cell.value = finalUnit; break;
-          case 'total': cell.value = finalUnit * Number(item.qty || 1); break;
-          case 'source': cell.value = (item.sourceFile || item.source || '').replace(/\.(xlsx|xls|csv)$/i, ''); break;
-        }
+        const values = {
+          position: idx + 1, article: item.article || '', model: item.model || '', color: item.color || '', family: item.family || '',
+          qty: Number(item.qty || 1), listPrice: Number(item.listPrice || 0), priceListDiscount: Number(item.priceListDiscount || 0) / 100,
+          netPrice: Number(item.netPrice || 0), extraDiscount: Number(item.extraDiscount || 0) / 100, finalUnitPrice: finalUnit,
+          total: finalUnit * Number(item.qty || 1), source: (item.sourceFile || item.source || '').replace(/\.(xlsx|xls|csv)$/i, '')
+        };
+        cell.value = values[field.key] ?? '';
         if (field.numFmt) cell.numFmt = field.numFmt;
         cell.alignment = { vertical: 'middle', wrapText: true };
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFD9E2F3' } },
-          bottom: { style: 'thin', color: { argb: 'FFD9E2F3' } },
-          left: { style: 'thin', color: { argb: 'FFD9E2F3' } },
-          right: { style: 'thin', color: { argb: 'FFD9E2F3' } }
-        };
+        cell.border = border;
       });
 
       try {
@@ -167,71 +146,55 @@
         const ext = imageExtension(src);
         if (src && ext) {
           const imageId = workbook.addImage({ base64: src, extension: ext });
-          ws.addImage(imageId, {
-            tl: { col: 0.08, row: rowNo - 1 + 0.08 },
-            ext: { width: 72, height: 72 },
-            editAs: 'oneCell'
-          });
+          ws.addImage(imageId, { tl: { col: 0.08, row: rowNo - 1 + 0.08 }, ext: { width: 72, height: 72 }, editAs: 'oneCell' });
         }
-      } catch (err) {
-        console.warn('Product image skipped in Excel export.', err);
-      }
+      } catch (err) { console.warn('Product image skipped in Excel export.', err); }
     });
 
     const totalCol = keyToCol.total;
-    const totalRowNo = firstDataRow + state.offer.length + 1;
     if (totalCol) {
+      const totalRowNo = firstDataRow + state.offer.length + 1;
       const labelCell = ws.getCell(totalRowNo, Math.max(1, totalCol - 1));
       const valueCell = ws.getCell(totalRowNo, totalCol);
       labelCell.value = 'GRAND TOTAL';
       valueCell.value = { formula: `SUM(${colName(totalCol - 1)}${firstDataRow}:${colName(totalCol - 1)}${firstDataRow + state.offer.length - 1})` };
       valueCell.numFmt = '#,##0.00';
-      [labelCell, valueCell].forEach(cell => {
-        cell.font = { bold: true };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9EAF7' } };
-      });
+      [labelCell, valueCell].forEach(cell => { cell.font = { bold: true }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9EAF7' } }; });
     }
 
     ws.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: headerRow, column: lastCol } };
-
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `Quotation${customer ? '_' + safeName(customer) : ''}${offerNo ? '_' + safeName(offerNo) : ''}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    document.body.appendChild(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(link.href), 2000);
   }
 
   function installImageExport() {
     const exportBtn = document.getElementById('exportBtn');
     if (!exportBtn) return;
-    exportBtn.addEventListener('click', async (event) => {
+    exportBtn.addEventListener('click', async event => {
       ensureImageOption();
       if (!state.exportOptions.includeProductImages) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
+      event.preventDefault(); event.stopImmediatePropagation();
       exportBtn.disabled = true;
       const oldText = exportBtn.textContent;
       exportBtn.textContent = 'Creating Excel with images…';
       try { await exportWithImages(); }
-      catch (err) {
-        console.error(err);
-        alert('The Excel quotation with images could not be created.');
-      } finally {
-        exportBtn.disabled = false;
-        exportBtn.textContent = oldText;
-      }
+      catch (err) { console.error(err); alert('The Excel quotation with images could not be created.'); }
+      finally { exportBtn.disabled = false; exportBtn.textContent = oldText; }
     }, true);
   }
 
   function init() {
+    const badge = document.querySelector('.badge');
+    if (badge) badge.textContent = 'V26 · Excel product images';
     installOptionObserver();
     installImageExport();
+    loadExcelJs().catch(err => console.warn(err));
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
