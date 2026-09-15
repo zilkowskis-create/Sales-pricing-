@@ -64,9 +64,25 @@
     });
   }
 
+  async function syncVersionBadge() {
+    const badge = document.querySelector('.badge');
+    if (!badge) return;
+    try {
+      const response = await fetch(`version.json?badge=${Date.now()}`, { cache: 'no-store' });
+      if (!response.ok) return;
+      const info = await response.json();
+      const version = Number(info.version || 0);
+      if (version > 0) badge.textContent = `V${version}${info.label ? ` · ${info.label}` : ''}`;
+    } catch (err) {
+      console.warn('Version badge sync failed.', err);
+    }
+  }
+
   function init() {
     installImageResolver();
     showRalColourColumn();
+    syncVersionBadge();
+    window.addEventListener('focus', syncVersionBadge);
     const results = document.getElementById('resultsBody');
     if (results) new MutationObserver(showRalColourColumn).observe(results, { childList: true, subtree: true });
   }
