@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Price List Analyzer & Quote Generator</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Sales Pricing · Quotation & Pricing Tool</title>
   <link rel="stylesheet" href="styles.css?v=21" />
   <link rel="stylesheet" href="enhancements-v23.css?v=23" />
   <link rel="stylesheet" href="enhancements-v25.css?v=25" />
@@ -20,7 +23,7 @@
 <body>
   <header class="topbar">
     <div><h1>Sales Pricing</h1><p>Quotation & Pricing Tool</p></div>
-    <div class="badge">V29 · RAL & image export fix</div>
+    <div class="badge">V30 · Reliable updates</div>
   </header>
   <div id="updateBanner" class="update-banner" role="status" aria-live="polite"><span id="updateMessage">A new version is available.</span><button id="updateReloadBtn" type="button">Load update</button></div>
 
@@ -65,7 +68,48 @@
   <script src="enhancements-v28.js?v=28"></script>
   <script src="enhancements-v29.js?v=29"></script>
   <script>
-    (()=>{const CURRENT_VERSION=29,banner=document.getElementById('updateBanner'),message=document.getElementById('updateMessage'),reloadBtn=document.getElementById('updateReloadBtn');async function checkForUpdate(){try{const response=await fetch(`version.json?t=${Date.now()}`,{cache:'no-store'});if(!response.ok)return;const info=await response.json(),latest=Number(info.version||0);if(latest>CURRENT_VERSION){message.textContent=`Update available – V${latest}${info.label?` · ${info.label}`:''}`;banner.classList.add('visible')}}catch(err){console.warn('Update check failed.',err)}}reloadBtn.addEventListener('click',()=>{const url=new URL(window.location.href);url.searchParams.set('update',Date.now().toString());window.location.replace(url.toString())});checkForUpdate();window.addEventListener('focus',checkForUpdate);setInterval(checkForUpdate,15*60*1000)})();
+    (()=>{
+      const CURRENT_VERSION=30;
+      const banner=document.getElementById('updateBanner');
+      const message=document.getElementById('updateMessage');
+      const reloadBtn=document.getElementById('updateReloadBtn');
+      let latestVersion=CURRENT_VERSION;
+      async function checkForUpdate(){
+        try{
+          const response=await fetch(`version.json?check=${Date.now()}`,{cache:'no-store',headers:{'Cache-Control':'no-cache'}});
+          if(!response.ok)return;
+          const info=await response.json();
+          const latest=Number(info.version||0);
+          latestVersion=Math.max(latestVersion,latest);
+          if(latest>CURRENT_VERSION){
+            message.textContent=`Update available – V${latest}${info.label?` · ${info.label}`:''}`;
+            banner.classList.add('visible');
+          }
+        }catch(err){console.warn('Update check failed.',err)}
+      }
+      async function forceFreshReload(){
+        reloadBtn.disabled=true;
+        reloadBtn.textContent='Updating…';
+        try{
+          if('caches' in window){
+            const keys=await caches.keys();
+            await Promise.all(keys.map(key=>caches.delete(key)));
+          }
+          if('serviceWorker' in navigator){
+            const regs=await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(reg=>reg.unregister()));
+          }
+        }catch(err){console.warn('Cache cleanup failed.',err)}
+        const url=new URL(window.location.href);
+        url.searchParams.set('version',String(latestVersion));
+        url.searchParams.set('fresh',Date.now().toString());
+        window.location.replace(url.toString());
+      }
+      reloadBtn.addEventListener('click',forceFreshReload);
+      checkForUpdate();
+      window.addEventListener('focus',checkForUpdate);
+      setInterval(checkForUpdate,15*60*1000);
+    })();
   </script>
 </body>
 </html>
