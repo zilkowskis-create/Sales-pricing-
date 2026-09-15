@@ -1,8 +1,6 @@
 (() => {
   'use strict';
 
-  const FINAL_VERSION_LABEL = 'V31 · Table alignment';
-
   function normalizeResultTable() {
     const table = document.querySelector('#searchCard table');
     const body = document.getElementById('resultsBody');
@@ -23,8 +21,6 @@
         modelCell.insertAdjacentElement('afterend', info);
       }
 
-      /* Wait until the info cell has been inserted so the final 14-column
-         structure is stable. */
       if (row.children.length < headers.length) continue;
 
       Array.from(row.children).forEach(cell => cell.style.removeProperty('display'));
@@ -41,11 +37,6 @@
     });
   }
 
-  function keepVersionBadgeCurrent() {
-    const badge = document.querySelector('.badge');
-    if (badge) badge.textContent = FINAL_VERSION_LABEL;
-  }
-
   function init() {
     scheduleNormalize();
 
@@ -57,10 +48,6 @@
 
     ['searchInput','priceListTabs','sheetTogglePanel','sourceFilter','familyFilter','colorFilter']
       .forEach(id => document.getElementById(id)?.addEventListener('change', scheduleNormalize));
-
-    keepVersionBadgeCurrent();
-    setTimeout(keepVersionBadgeCurrent, 100);
-    setTimeout(keepVersionBadgeCurrent, 500);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
