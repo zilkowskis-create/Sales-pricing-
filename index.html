@@ -25,7 +25,7 @@
 <body>
   <header class="topbar">
     <div><h1>Sales Pricing</h1><p>Quotation & Pricing Tool</p></div>
-    <div class="badge">V33 · Modern Excel quotation</div>
+    <div class="badge">V34 · TSS footer logo</div>
   </header>
   <div id="updateBanner" class="update-banner" role="status" aria-live="polite"><span id="updateMessage">A new version is available.</span><button id="updateReloadBtn" type="button">Load update</button></div>
 
@@ -72,14 +72,15 @@
   <script src="enhancements-v31.js?v=31"></script>
   <script src="enhancements-v32.js?v=32"></script>
   <script src="enhancements-v33.js?v=33"></script>
+  <script src="enhancements-v34.js?v=34"></script>
   <script>
     (()=>{
-      const CURRENT_VERSION=33;
+      const CURRENT_VERSION=34;
       const banner=document.getElementById('updateBanner');
       const message=document.getElementById('updateMessage');
       const reloadBtn=document.getElementById('updateReloadBtn');
       let latestVersion=CURRENT_VERSION;
-      const setCurrentBadge=()=>{const badge=document.querySelector('.badge');if(badge)badge.textContent='V33 · Modern Excel quotation';};
+      const setCurrentBadge=()=>{const badge=document.querySelector('.badge');if(badge)badge.textContent='V34 · TSS footer logo';};
       setCurrentBadge();
       if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(setCurrentBadge,0));else setTimeout(setCurrentBadge,0);
       async function checkForUpdate(){
@@ -99,24 +100,12 @@
         reloadBtn.disabled=true;
         reloadBtn.textContent='Updating…';
         try{
-          if('caches' in window){
-            const keys=await caches.keys();
-            await Promise.all(keys.map(key=>caches.delete(key)));
-          }
-          if('serviceWorker' in navigator){
-            const regs=await navigator.serviceWorker.getRegistrations();
-            await Promise.all(regs.map(reg=>reg.unregister()));
-          }
+          if('caches' in window){const keys=await caches.keys();await Promise.all(keys.map(key=>caches.delete(key)));}
+          if('serviceWorker' in navigator){const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(reg=>reg.unregister()));}
         }catch(err){console.warn('Cache cleanup failed.',err)}
-        const url=new URL(window.location.href);
-        url.searchParams.set('version',String(latestVersion));
-        url.searchParams.set('fresh',Date.now().toString());
-        window.location.replace(url.toString());
+        const url=new URL(window.location.href);url.searchParams.set('version',String(latestVersion));url.searchParams.set('fresh',Date.now().toString());window.location.replace(url.toString());
       }
-      reloadBtn.addEventListener('click',forceFreshReload);
-      checkForUpdate();
-      window.addEventListener('focus',checkForUpdate);
-      setInterval(checkForUpdate,15*60*1000);
+      reloadBtn.addEventListener('click',forceFreshReload);checkForUpdate();window.addEventListener('focus',checkForUpdate);setInterval(checkForUpdate,15*60*1000);
     })();
   </script>
 </body>
