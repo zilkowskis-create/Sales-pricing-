@@ -1,0 +1,4 @@
+/* V29 · Restore RAL colours and strengthen image export */
+#searchCard table th:nth-child(7),#searchCard table td:nth-child(7){display:table-cell!important}
+#searchCard table th:nth-child(8),#searchCard table td:nth-child(8){display:none!important}
+#searchCard .ral-color-cell{min-width:56px;text-align:center}
