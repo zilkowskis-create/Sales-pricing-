@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="styles.css?v=21" />
   <link rel="stylesheet" href="enhancements-v23.css?v=23" />
   <link rel="stylesheet" href="enhancements-v25.css?v=25" />
+  <link rel="stylesheet" href="enhancements-v27.css?v=27" />
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
@@ -16,8 +17,8 @@
 </head>
 <body>
   <header class="topbar">
-    <div><h1>Price List Analyzer</h1><p>Search multiple price lists and automatically transfer selected items into an Excel quotation.</p></div>
-    <div class="badge">V26 · Excel product images</div>
+    <div><h1>Sales Pricing</h1><p>Quotation & Pricing Tool</p></div>
+    <div class="badge">V27 · Business UI</div>
   </header>
   <div id="updateBanner" class="update-banner" role="status" aria-live="polite"><span id="updateMessage">A new version is available.</span><button id="updateReloadBtn" type="button">Load update</button></div>
 
@@ -52,14 +53,15 @@
   </main>
 
   <dialog id="imageDialog" class="image-dialog"><button id="closeImageDialog" class="image-dialog-close" type="button" aria-label="Close image">×</button><img id="imageDialogImg" alt="Large product image" /><div id="imageDialogCaption" class="image-dialog-caption"></div></dialog>
-  <footer><p>Price List Analyzer · Price lists and processing remain local in this browser</p></footer>
+  <footer><p>Sales Pricing · Price lists and processing remain local in this browser</p></footer>
 
   <script src="app.js?v=21"></script>
   <script src="enhancements-v23.js?v=23"></script>
   <script src="enhancements-v25.js?v=25"></script>
   <script src="enhancements-v26.js?v=26"></script>
+  <script src="enhancements-v27.js?v=27"></script>
   <script>
-    (()=>{const CURRENT_VERSION=26,banner=document.getElementById('updateBanner'),message=document.getElementById('updateMessage'),reloadBtn=document.getElementById('updateReloadBtn');async function checkForUpdate(){try{const response=await fetch(`version.json?t=${Date.now()}`,{cache:'no-store'});if(!response.ok)return;const info=await response.json(),latest=Number(info.version||0);if(latest>CURRENT_VERSION){message.textContent=`Update available – V${latest}${info.label?` · ${info.label}`:''}`;banner.classList.add('visible')}}catch(err){console.warn('Update check failed.',err)}}reloadBtn.addEventListener('click',()=>{const url=new URL(window.location.href);url.searchParams.set('update',Date.now().toString());window.location.replace(url.toString())});checkForUpdate();window.addEventListener('focus',checkForUpdate);setInterval(checkForUpdate,15*60*1000)})();
+    (()=>{const CURRENT_VERSION=27,banner=document.getElementById('updateBanner'),message=document.getElementById('updateMessage'),reloadBtn=document.getElementById('updateReloadBtn');async function checkForUpdate(){try{const response=await fetch(`version.json?t=${Date.now()}`,{cache:'no-store'});if(!response.ok)return;const info=await response.json(),latest=Number(info.version||0);if(latest>CURRENT_VERSION){message.textContent=`Update available – V${latest}${info.label?` · ${info.label}`:''}`;banner.classList.add('visible')}}catch(err){console.warn('Update check failed.',err)}}reloadBtn.addEventListener('click',()=>{const url=new URL(window.location.href);url.searchParams.set('update',Date.now().toString());window.location.replace(url.toString())});checkForUpdate();window.addEventListener('focus',checkForUpdate);setInterval(checkForUpdate,15*60*1000)})();
   </script>
 </body>
 </html>
