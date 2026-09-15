@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="enhancements-v28.css?v=28" />
   <link rel="stylesheet" href="enhancements-v29.css?v=29" />
   <link rel="stylesheet" href="enhancements-v31.css?v=31" />
+  <link rel="stylesheet" href="enhancements-v32.css?v=32" />
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
@@ -24,7 +25,7 @@
 <body>
   <header class="topbar">
     <div><h1>Sales Pricing</h1><p>Quotation & Pricing Tool</p></div>
-    <div class="badge">V31 · Table alignment</div>
+    <div class="badge">V32 · Standard Excel export</div>
   </header>
   <div id="updateBanner" class="update-banner" role="status" aria-live="polite"><span id="updateMessage">A new version is available.</span><button id="updateReloadBtn" type="button">Load update</button></div>
 
@@ -69,13 +70,17 @@
   <script src="enhancements-v28.js?v=28"></script>
   <script src="enhancements-v29.js?v=29"></script>
   <script src="enhancements-v31.js?v=31"></script>
+  <script src="enhancements-v32.js?v=32"></script>
   <script>
     (()=>{
-      const CURRENT_VERSION=31;
+      const CURRENT_VERSION=32;
       const banner=document.getElementById('updateBanner');
       const message=document.getElementById('updateMessage');
       const reloadBtn=document.getElementById('updateReloadBtn');
       let latestVersion=CURRENT_VERSION;
+      const setCurrentBadge=()=>{const badge=document.querySelector('.badge');if(badge)badge.textContent='V32 · Standard Excel export';};
+      setCurrentBadge();
+      if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(setCurrentBadge,0));else setTimeout(setCurrentBadge,0);
       async function checkForUpdate(){
         try{
           const response=await fetch(`version.json?check=${Date.now()}`,{cache:'no-store',headers:{'Cache-Control':'no-cache'}});
