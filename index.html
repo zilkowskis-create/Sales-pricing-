@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="enhancements-v25.css?v=25" />
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <style>
     .update-banner{display:none;align-items:center;justify-content:space-between;gap:14px;margin:0;padding:10px 18px;background:#fff7d6;border-bottom:1px solid #f0d879;color:#5c4a00;font-size:14px;font-weight:700}.update-banner.visible{display:flex}.update-banner button{border:0;border-radius:9px;padding:8px 12px;background:#1f5eff;color:#fff;font-weight:800;cursor:pointer;white-space:nowrap}@media(max-width:700px){.update-banner{align-items:flex-start;flex-direction:column}}
   </style>
@@ -16,7 +17,7 @@
 <body>
   <header class="topbar">
     <div><h1>Price List Analyzer</h1><p>Search multiple price lists and automatically transfer selected items into an Excel quotation.</p></div>
-    <div class="badge">V25 · Draft Library</div>
+    <div class="badge">V26 · Excel product images</div>
   </header>
   <div id="updateBanner" class="update-banner" role="status" aria-live="polite"><span id="updateMessage">A new version is available.</span><button id="updateReloadBtn" type="button">Load update</button></div>
 
@@ -38,7 +39,7 @@
       <div id="filterPanel" class="search-filters"><label>Price list<select id="sourceFilter"><option value="">All price lists</option></select></label><label>Family / Group<select id="familyFilter"><option value="">All families</option></select></label><label>Colour / RAL<select id="colorFilter"><option value="">All colours</option></select></label><div class="filter-actions"><button id="clearFiltersBtn" class="mini-btn" type="button">Reset filters</button></div></div>
       <div class="sheet-panel"><div class="price-list-tab-wrap"><div class="price-list-tab-label">Price list</div><div id="priceListTabs" class="price-list-tabs"></div></div><div class="sheet-panel-head"><div><strong>Select sheet</strong><span class="muted">Select one sheet. Only products from the selected sheet are shown.</span></div></div><div id="sheetTogglePanel" class="sheet-tab-panel"></div></div>
       <p class="color-note">RAL is always shown as “RAL xxxx”. The colour swatch is an on-screen approximation; the RAL number is the reference.</p>
-      <div class="table-wrap"><table><thead><tr><th></th><th>Image</th><th>Part No.</th><th>Model</th><th>RAL</th><th class="info-head" title="Description">ⓘ</th><th>Colour</th><th>Family</th><th class="num">List Price</th><th class="num">Discount</th><th class="num">Net Price</th><th>Second Discount %</th><th>Units</th><th class="num">Total</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th></th><th>Image</th><th>Part No.</th><th>Model</th><th class="info-head" title="Description">ⓘ</th><th>RAL</th><th>Colour</th><th>Family</th><th class="num">List Price</th><th class="num">Discount</th><th class="num">Net Price</th><th>Second Discount %</th><th>Units</th><th class="num">Total</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
     </section>
 
     <section id="offerCard" class="card hidden">
@@ -56,8 +57,9 @@
   <script src="app.js?v=21"></script>
   <script src="enhancements-v23.js?v=23"></script>
   <script src="enhancements-v25.js?v=25"></script>
+  <script src="enhancements-v26.js?v=26"></script>
   <script>
-    (()=>{const CURRENT_VERSION=25,banner=document.getElementById('updateBanner'),message=document.getElementById('updateMessage'),reloadBtn=document.getElementById('updateReloadBtn');async function checkForUpdate(){try{const response=await fetch(`version.json?t=${Date.now()}`,{cache:'no-store'});if(!response.ok)return;const info=await response.json(),latest=Number(info.version||0);if(latest>CURRENT_VERSION){message.textContent=`Update available – V${latest}${info.label?` · ${info.label}`:''}`;banner.classList.add('visible')}}catch(err){console.warn('Update check failed.',err)}}reloadBtn.addEventListener('click',()=>{const url=new URL(window.location.href);url.searchParams.set('update',Date.now().toString());window.location.replace(url.toString())});checkForUpdate();window.addEventListener('focus',checkForUpdate);setInterval(checkForUpdate,15*60*1000)})();
+    (()=>{const CURRENT_VERSION=26,banner=document.getElementById('updateBanner'),message=document.getElementById('updateMessage'),reloadBtn=document.getElementById('updateReloadBtn');async function checkForUpdate(){try{const response=await fetch(`version.json?t=${Date.now()}`,{cache:'no-store'});if(!response.ok)return;const info=await response.json(),latest=Number(info.version||0);if(latest>CURRENT_VERSION){message.textContent=`Update available – V${latest}${info.label?` · ${info.label}`:''}`;banner.classList.add('visible')}}catch(err){console.warn('Update check failed.',err)}}reloadBtn.addEventListener('click',()=>{const url=new URL(window.location.href);url.searchParams.set('update',Date.now().toString());window.location.replace(url.toString())});checkForUpdate();window.addEventListener('focus',checkForUpdate);setInterval(checkForUpdate,15*60*1000)})();
   </script>
 </body>
 </html>
