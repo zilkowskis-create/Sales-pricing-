@@ -1,0 +1,10 @@
+#mappingCard.v28-mapping-collapsed{padding-top:14px;padding-bottom:14px}
+#mappingCard .v28-mapping-head{margin-bottom:0;align-items:center}
+#mappingCard .v28-mapping-title-wrap{display:flex;align-items:center;gap:10px}
+#mappingCard .v28-mapping-title-wrap h2{margin:0}
+.v28-mapping-toggle{width:32px;height:32px;border:1px solid #d8dee8;border-radius:9px;background:#fff;color:#223047;font-size:22px;line-height:1;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.v28-mapping-toggle:hover{background:#f5f7fb;border-color:#bfc8d6}
+#mappingCard.v28-mapping-collapsed .v28-mapping-detail{display:none!important}
+#mappingCard:not(.v28-mapping-collapsed) .v28-mapping-detail{display:initial}
+#mappingCard:not(.v28-mapping-collapsed) .mapping-grid.v28-mapping-detail{display:grid}
+#mappingCard:not(.v28-mapping-collapsed) #applyMappingBtn.v28-mapping-detail{display:inline-flex}
