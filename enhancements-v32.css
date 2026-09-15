@@ -1,0 +1,4 @@
+/* V32 · Standard Excel export */
+[data-export-option="includeProductImages"],
+[data-export-option="includeProductImages"] + span,
+.v27-image-option:has([data-export-option="includeProductImages"]){display:none!important}
