@@ -69,7 +69,7 @@
   <script src="enhancements-v27.js?v=27"></script>
   <script src="enhancements-v28.js?v=28"></script>
   <script src="enhancements-v29.js?v=29"></script>
-  <script src="enhancements-v31.js?v=31"></script>
+  <script src="enhancements-v31.js?v=34.1"></script>
   <script src="enhancements-v32.js?v=32"></script>
   <script src="enhancements-v33.js?v=33"></script>
   <script src="enhancements-v34.js?v=34"></script>
@@ -93,6 +93,8 @@
           if(latest>CURRENT_VERSION){
             message.textContent=`Update available – V${latest}${info.label?` · ${info.label}`:''}`;
             banner.classList.add('visible');
+          } else {
+            banner.classList.remove('visible');
           }
         }catch(err){console.warn('Update check failed.',err)}
       }
