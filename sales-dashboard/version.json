@@ -1,1 +1,1 @@
-{"version":"2026.09.17.4","updated":"2026-09-17","message":"Fixed Excel import freeze; customer and gross-margin tabs now load on demand"}
+{"version":"2026.09.17.5","updated":"2026-09-17","message":"Fast direct XLS parser for large sales files; Excel loading restored"}
