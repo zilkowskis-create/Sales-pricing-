@@ -1,1 +1,1 @@
-document.write('<script src="https://raw.githubusercontent.com/zilkowskis-create/Sales-pricing-/4c8683bd9591a19b88583dad8fc0aecaefe6cc76/sales-dashboard/app.js"><\/script><script src="./goal-layout.js?v=202609172"><\/script>');
+document.write('<script src="https://raw.githubusercontent.com/zilkowskis-create/Sales-pricing-/4c8683bd9591a19b88583dad8fc0aecaefe6cc76/sales-dashboard/app.js"><\/script><script src="./goal-layout.js?v=202609172"><\/script><script src="./update-fix.js?v=202609173"><\/script>');
