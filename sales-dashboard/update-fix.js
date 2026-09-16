@@ -1,5 +1,5 @@
 (()=>{
-const UI_VERSION='2026.09.17.3';
+const UI_VERSION='2026.09.17.4';
 let latestVersion=UI_VERSION;
 const getBtn=()=>document.getElementById('updateBtn');
 async function syncUpdate(){
@@ -28,9 +28,10 @@ function replaceButton(){
   old.replaceWith(b);
   b.addEventListener('click',()=>{
     const u=new URL(location.href);
+    u.search='';
     u.searchParams.set('v',latestVersion||Date.now());
     u.searchParams.set('refresh',Date.now());
-    location.href=u.toString();
+    location.replace(u.toString());
   });
   const mo=new MutationObserver(()=>{
     if(latestVersion===UI_VERSION&&b.classList.contains('show')) b.classList.remove('show');
