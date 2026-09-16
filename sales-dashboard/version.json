@@ -1,1 +1,1 @@
-{"version":"2026.09.17.3","updated":"2026-09-17","message":"Fixed persistent update button and cache-busting reload"}
+{"version":"2026.09.17.4","updated":"2026-09-17","message":"Fixed Excel import freeze; customer and gross-margin tabs now load on demand"}
