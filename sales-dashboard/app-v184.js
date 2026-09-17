@@ -62,7 +62,15 @@
         if(activeBrands.has('Car-O-Liner'))x=add(x,valuesFromRow(col)||zero());
         if(activeBrands.has('BlackHawk'))x=add(x,valuesFromRow(bh)||zero());
         x=finish(x);
-        total.cells[1].textContent=usd.format(x.target);total.cells[2].textContent=usd.format(x.actual);total.cells[3].textContent=usd.format(x.o0);total.cells[4].textContent=usd.format(x.o1);total.cells[5].innerHTML='<b>'+usd.format(x.forecast)+'</b>';total.cells[6].innerHTML='<b>'+formatSigned(x.gap)+'</b>';total.cells[6].classList.remove('good','bad');total.cells[6].classList.add(gapClass(x.gap));total.cells[7].innerHTML='<b>'+(x.attain==null?'—':pctFmt.format(x.attain))+'</b>';total.cells[7].classList.remove('good','bad');if(x.attain!=null)total.cells[7].classList.add(x.attain>=1?'good':'bad');
+        total.cells[1].textContent=usd.format(x.target);
+        total.cells[2].textContent=usd.format(x.actual);
+        total.cells[3].textContent=usd.format(x.o0);
+        total.cells[4].textContent=usd.format(x.o1);
+        total.cells[5].innerHTML='<b>'+usd.format(x.forecast)+'</b>';
+        total.cells[6].innerHTML='<b>'+formatSigned(x.gap)+'</b>';
+        total.cells[6].classList.remove('good','bad');total.cells[6].classList.add(gapClass(x.gap));
+        total.cells[7].innerHTML='<b>'+(x.attain==null?'—':pctFmt.format(x.attain))+'</b>';
+        total.cells[7].classList.remove('good','bad');if(x.attain!=null)total.cells[7].classList.add(x.attain>=1?'good':'bad');
       }
     }
 
@@ -105,8 +113,8 @@
     installToggles();cleanUndercar();
     let scheduled=false;
     function schedule(){if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;cleanUndercar();recalcCollisionTotal();});}
-    const u=document.getElementById('undercarOverview');if(u)new MutationObserver(schedule).observe(u,{childList:true,subtree:true});
-    const c=document.getElementById('collisionBrandBody');if(c)new MutationObserver(schedule).observe(c,{childList:true,subtree:true,characterData:true});
+    const u=document.getElementById('undercarOverview');if(u)new MutationObserver(()=>cleanUndercar()).observe(u,{childList:true,subtree:true});
+    document.getElementById('collisionFile')?.addEventListener('change',()=>{setTimeout(schedule,300);setTimeout(schedule,1000);setTimeout(schedule,2200);});
     setTimeout(schedule,200);setTimeout(schedule,900);setTimeout(schedule,1800);
   }catch(e){console.error(e);if(status)status.textContent='App load error: '+(e?.message||String(e));}
 })();
