@@ -1,1 +1,1 @@
-{"version":"2026.09.17.9","updated":"2026-09-17","message":"Customer view reorganized: compact customer block, monthly target and missing sales per customer"}
+{"version":"2026.09.17.10","updated":"2026-09-17","message":"Customers now merge by customer code; added customer Plan YTD and YTD gap columns when available"}
