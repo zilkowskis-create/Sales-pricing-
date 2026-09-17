@@ -1,7 +1,27 @@
 (async()=>{
   'use strict';
+  const UI_VERSION='2026.09.17.23';
   const status=document.getElementById('status');
-  const realFetch=window.fetch.bind(window);
+  const nativeFetch=window.fetch.bind(window);
+
+  // If a cached bootstrap is loaded after an update, force-fetch the requested build
+  // and execute it once. This makes the update flow independent from browser HTTP cache.
+  const pageUrl=new URL(location.href);
+  const requestedVersion=pageUrl.searchParams.get('v')||pageUrl.searchParams.get('version');
+  if(requestedVersion&&requestedVersion!==UI_VERSION){
+    try{
+      const r=await nativeFetch('./app-v189.js?force='+encodeURIComponent(requestedVersion)+'&ts='+Date.now(),{cache:'no-store'});
+      if(r.ok){
+        const fresh=await r.text();
+        if(fresh.includes("const UI_VERSION='"+requestedVersion+"'")){
+          await (0,eval)(fresh);
+          return;
+        }
+      }
+    }catch(e){console.warn('Fresh dashboard bootstrap could not be loaded',e);}
+  }
+
+  const realFetch=nativeFetch;
 
   function patchCompatibility(code){
     let out=String(code||'')
@@ -35,7 +55,7 @@
   async function restoreInput(id,key,fallbackName,type){const input=document.getElementById(id);if(!input||input.files?.length)return;const file=await getFile(key,fallbackName,type);if(!file)return;try{const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){console.warn(key+' automatic restore not supported',e);}}
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026091722&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026091723&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
@@ -47,6 +67,52 @@
     undercar?.addEventListener('change',()=>{const f=undercar.files?.[0];if(f)saveFile('undercar',f);},{capture:true});
     collision?.addEventListener('change',()=>{const f=collision.files?.[0];if(f)saveFile('collision',f);},{capture:true});
     setTimeout(()=>restoreInput('file','undercar','Undercar.xls','application/vnd.ms-excel'),900);
+
+    // Robust update button: own version check + cache-busting reload.
+    let latestVersion=UI_VERSION;
+    async function syncUpdate(){
+      try{
+        const r=await realFetch('./version.json?ts='+Date.now(),{cache:'no-store'});
+        if(!r.ok)return;
+        const j=await r.json();
+        latestVersion=j.version||UI_VERSION;
+        const b=document.getElementById('updateBtn');
+        if(!b)return;
+        if(latestVersion!==UI_VERSION){
+          b.classList.add('show');
+          b.textContent='↻ Update available · '+latestVersion;
+          b.title=j.message||('Version '+latestVersion+' available');
+        }else{
+          b.classList.remove('show');
+          b.textContent='↻ Update available';
+          b.title='';
+        }
+      }catch(e){console.warn('Update check failed',e);}
+    }
+    function installUpdateButton(){
+      const old=document.getElementById('updateBtn');
+      if(!old)return;
+      const b=old.cloneNode(true);
+      b.id='updateBtn';
+      old.replaceWith(b);
+      b.addEventListener('click',async()=>{
+        b.disabled=true;
+        b.classList.add('show');
+        b.textContent='Updating…';
+        try{
+          if('caches' in window){const keys=await caches.keys();await Promise.all(keys.map(k=>caches.delete(k)));}
+          if('serviceWorker' in navigator){const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.unregister()));}
+        }catch(e){console.warn('Cache cleanup failed',e);}
+        const u=new URL(location.href);
+        u.searchParams.set('v',latestVersion||Date.now().toString());
+        u.searchParams.set('fresh',Date.now().toString());
+        location.replace(u.toString());
+      });
+    }
+    installUpdateButton();
+    syncUpdate();
+    setInterval(syncUpdate,45000);
+    window.addEventListener('pageshow',syncUpdate);
 
     setTimeout(()=>{if(status&&/Version upgrade point not found/i.test(status.textContent||''))status.textContent='';},1500);
   }catch(e){
