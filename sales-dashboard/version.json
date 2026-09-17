@@ -1,1 +1,1 @@
-{"version":"2026.09.17.18","updated":"2026-09-17","message":"Collision Ord0 and Ord1 are now combined into a single Orders KPI across Monthly Overview and Collision Detail views"}
+{"version":"2026.09.17.19","updated":"2026-09-17","message":"Collision Detail now shows Ord0 and Ord1 only as one combined Orders metric in manager, brand and country views"}
