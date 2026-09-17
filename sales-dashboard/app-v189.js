@@ -3,8 +3,14 @@
   const status=document.getElementById('status');
   const realFetch=window.fetch.bind(window);
 
-  function patchVersionGuards(code){
-    return String(code||'').replace(/throw new Error\('Version upgrade point not found'\)/g,"console.warn('Version marker mismatch - continuing')");
+  function patchCompatibility(code){
+    let out=String(code||'')
+      .replace(/throw new Error\('Version upgrade point not found'\)/g,"console.warn('Version marker mismatch - continuing')");
+
+    // Collision Europe East scope: Japan must never be assigned to Ruslan/Export
+    // or included in Collision totals. Patch both overview and detail ownerFor layers.
+    out=out.replace(/if\(!b\|\|!c\)return null;/g,"if(!b||!c)return null;if(/^japan$/i.test(c))return null;");
+    return out;
   }
 
   window.fetch=async function(input,init){
@@ -14,7 +20,7 @@
       const url=new URL(raw,location.href);
       const isLayer=/\/app-v\d+(?:-core)?\.js$/i.test(url.pathname)||/\/app-v184-base\.js$/i.test(url.pathname);
       if(!isLayer)return res;
-      const text=patchVersionGuards(await res.text());
+      const text=patchCompatibility(await res.text());
       return new Response(text,{status:res.status,statusText:res.statusText,headers:res.headers});
     }catch(e){
       console.warn('Compatibility layer skipped',e);
@@ -29,9 +35,12 @@
   async function restoreInput(id,key,fallbackName,type){const input=document.getElementById(id);if(!input||input.files?.length)return;const file=await getFile(key,fallbackName,type);if(!file)return;try{const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){console.warn(key+' automatic restore not supported',e);}}
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026091721c&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
-    core=patchVersionGuards(core);
+    let core=await realFetch('./app-v189-core.js?hotfix=2026091722&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    core=patchCompatibility(core);
     await (0,eval)(core);
+
+    const rule=document.querySelector('#collisionDetail .collisionRule');
+    if(rule)rule.textContent=rule.textContent.replace('Ruslan = Bulgaria + Export','Ruslan = Bulgaria + Export (excl. Japan)');
 
     const undercar=document.getElementById('file');
     const collision=document.getElementById('collisionFile');
