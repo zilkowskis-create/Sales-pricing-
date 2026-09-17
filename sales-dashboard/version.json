@@ -1,1 +1,1 @@
-{"version":"2026.09.17.19","updated":"2026-09-17","message":"Collision Detail now shows Ord0 and Ord1 only as one combined Orders metric in manager, brand and country views"}
+{"version":"2026.09.17.20","updated":"2026-09-17","message":"Undercar Detail: Order Entered is hidden by default and shown only when Full view is active"}
