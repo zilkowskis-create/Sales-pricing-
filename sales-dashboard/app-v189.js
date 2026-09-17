@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.23';
+  const UI_VERSION='2026.09.17.24';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -55,12 +55,108 @@
   async function restoreInput(id,key,fallbackName,type){const input=document.getElementById(id);if(!input||input.files?.length)return;const file=await getFile(key,fallbackName,type);if(!file)return;try{const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){console.warn(key+' automatic restore not supported',e);}}
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026091723&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026091724&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
     const rule=document.querySelector('#collisionDetail .collisionRule');
     if(rule)rule.textContent=rule.textContent.replace('Ruslan = Bulgaria + Export','Ruslan = Bulgaria + Export (excl. Japan)');
+
+    // Only the top Collision overview strip should visually match Undercar Detail.
+    const collisionStyle=document.createElement('style');
+    collisionStyle.textContent=`
+      #collisionDetailKpis.collisionOverviewGoals{grid-template-columns:1.35fr .85fr!important;gap:10px!important}
+      #collisionDetailKpis .collisionMonthGoalRow{grid-template-columns:repeat(3,1fr)}
+      #collisionDetailKpis .collisionYtdGoalRow{grid-template-columns:1fr}
+      #collisionCountryCompactTable.monthOnly{min-width:820px!important}
+      @media(max-width:1000px){#collisionDetailKpis.collisionOverviewGoals{grid-template-columns:1fr!important}}
+      @media(max-width:700px){#collisionDetailKpis .collisionMonthGoalRow{grid-template-columns:1fr}}
+    `;
+    document.head.appendChild(collisionStyle);
+
+    const getText=(root,sel)=>root?.querySelector(sel)?.textContent?.trim()||'';
+    const cardByLabel=(box,label)=>[...box.children].find(c=>getText(c,'.label').toLowerCase()===label.toLowerCase());
+    const goalBox=(title,main,sub='',meta='')=>`<div class="goalBox"><div class="goalTitle">${title}</div><div class="goalMain"><span>${main||'—'}</span></div>${meta?`<div class="goalMeta">${meta}</div>`:''}${sub?`<div class="goalSub">${sub}</div>`:''}</div>`;
+
+    function styleCollisionOverviewBar(){
+      const box=document.getElementById('collisionDetailKpis');
+      if(!box||box.dataset.undercarStyle==='1')return;
+      const monthAop=cardByLabel(box,'Month AOP');
+      const actual=cardByLabel(box,'Actual');
+      const orders=cardByLabel(box,'Orders')||cardByLabel(box,'Ord0 + Ord1');
+      const forecast=cardByLabel(box,'Month Forecast');
+      const aopPct=cardByLabel(box,'AOP %');
+      const ytd=cardByLabel(box,'YTD Forecast');
+      if(!monthAop||!actual||!orders||!forecast)return;
+      const value=c=>getText(c,'.value')||'—';
+      const forecastNote=getText(forecast,'.muted');
+      const ytdNote=getText(ytd,'.muted');
+      box.className='goalsGrid collisionOverviewGoals';
+      box.innerHTML=`
+        <section class="goalSection monthly">
+          <div class="sectionHead"><span>MONTH</span><b>Current month performance</b></div>
+          <div class="goalRow collisionMonthGoalRow">
+            ${goalBox('Actual',value(actual),'AOP '+value(monthAop))}
+            ${goalBox('Orders',value(orders),'Current month orders')}
+            ${goalBox('Forecast',value(forecast),forecastNote,`<b>${value(aopPct)}</b><strong>vs AOP</strong>`)}
+          </div>
+        </section>
+        <section class="goalSection annual">
+          <div class="sectionHead"><span>YTD</span><b>Year-to-date forecast</b></div>
+          <div class="goalRow collisionYtdGoalRow">${goalBox('YTD Forecast',value(ytd),ytdNote)}</div>
+        </section>`;
+      box.dataset.undercarStyle='1';
+    }
+
+    // Manager / Country Performance is a current-month table, so remove YTD columns there only.
+    function makeCountryManagerMonthly(){
+      const table=document.getElementById('collisionCountryCompactTable');
+      if(!table||table.dataset.monthOnly==='1'||!table.tHead||!table.tBodies?.[0])return;
+      const rows=[...table.tHead.rows];
+      if(rows.length<2)return;
+      const labelsRow=rows[rows.length-1];
+      const labels=[...labelsRow.cells].map(c=>(c.textContent||'').trim().toLowerCase());
+      const ytdStart=labels.findIndex(x=>x.includes('ytd'));
+      if(ytdStart<0)return;
+
+      for(const r of [...table.tBodies[0].rows]){
+        if(r.cells.length===1&&r.cells[0].colSpan>1){r.cells[0].colSpan=ytdStart;continue;}
+        for(let i=r.cells.length-1;i>=ytdStart;i--)r.deleteCell(i);
+      }
+      for(let i=labelsRow.cells.length-1;i>=ytdStart;i--)labelsRow.deleteCell(i);
+
+      const groupRow=rows[0];
+      for(const cell of [...groupRow.cells]){
+        const txt=(cell.textContent||'').trim().toLowerCase();
+        if(txt.includes('ytd')||cell.classList.contains('year'))cell.remove();
+      }
+      const monthCell=[...groupRow.cells].find(c=>c.classList.contains('month'));
+      if(monthCell)monthCell.colSpan=Math.max(1,ytdStart-1);
+
+      table.classList.add('monthOnly');
+      table.dataset.monthOnly='1';
+      const panel=table.closest('.card.panel');
+      const p=panel?.querySelector('p');
+      if(p)p.textContent='Current month · one row per country · values aggregated across the active brands.';
+    }
+
+    let collisionUiScheduled=false;
+    function syncCollisionUi(){
+      if(collisionUiScheduled)return;
+      collisionUiScheduled=true;
+      requestAnimationFrame(()=>{
+        collisionUiScheduled=false;
+        styleCollisionOverviewBar();
+        makeCountryManagerMonthly();
+      });
+    }
+    const detailPane=document.getElementById('collisionDetail');
+    if(detailPane)new MutationObserver(syncCollisionUi).observe(detailPane,{childList:true,subtree:true});
+    document.querySelector('.tab[data-tab="collisionDetail"]')?.addEventListener('click',()=>{setTimeout(syncCollisionUi,60);setTimeout(syncCollisionUi,350);});
+    document.getElementById('collisionFile')?.addEventListener('change',()=>{setTimeout(syncCollisionUi,600);setTimeout(syncCollisionUi,1600);setTimeout(syncCollisionUi,3200);});
+    document.getElementById('collisionManagerDetail')?.addEventListener('change',()=>setTimeout(syncCollisionUi,150));
+    document.getElementById('collisionDetail')?.addEventListener('change',()=>setTimeout(syncCollisionUi,150));
+    setTimeout(syncCollisionUi,250);setTimeout(syncCollisionUi,1000);setTimeout(syncCollisionUi,2200);
 
     const undercar=document.getElementById('file');
     const collision=document.getElementById('collisionFile');
