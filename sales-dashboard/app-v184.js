@@ -2,94 +2,111 @@
   'use strict';
   const status=document.getElementById('status');
   try{
-    let src=await fetch('./app-v183.js?base=2026091712',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Previous app version could not be loaded');return r.text();});
-    const from="src=src.replace('2026.09.17.11','2026.09.17.12');";
-    const to="src=src.replace('2026.09.17.11','2026.09.17.13');";
-    if(!src.includes(from)) throw new Error('Version upgrade point not found');
-    src=src.replace(from,to);
-    (0,eval)(src);
+    let base=await fetch('./app-v184-base.js?base=2026091714&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Base app could not be loaded');return r.text();});
+    const oldLine="src=src.replace('2026.09.17.11','2026.09.17.13');";
+    const newLine="src=src.replace('2026.09.17.11','2026.09.17.14');";
+    if(!base.includes(oldLine)) throw new Error('Version upgrade point not found');
+    base=base.replace(oldLine,newLine);
+    await (0,eval)(base);
 
-    const BRAND_ORDER=['Josam','Car-O-Liner','BlackHawk'];
-    const MANAGER_ORDER=['Sergej','Mindaugas Deikus','Ruslan Sollano','Michal Adamiec'];
-    const BALTICS_SOUTH=new Set(['Lithuania','Latvia','Estonia','Greece','Cyprus']);
-    const JOSAM_EXCLUDED=new Set(['Austria','Czechia','Slovakia']);
     const usd=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
     const pctFmt=new Intl.NumberFormat('de-DE',{style:'percent',maximumFractionDigits:1});
-    const n=v=>Number.isFinite(Number(v))?Number(v):0;
-    const safe=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const signed=v=>(n(v)>=0?'+':'')+usd.format(n(v));
-    const gapClass=v=>n(v)>=0?'good':'bad';
-    const monthName=m=>['','January','February','March','April','May','June','July','August','September','October','November','December'][m]||String(m||'');
-    const brandOf=v=>{const s=String(v||'').trim().toLowerCase();if(s==='josam')return'Josam';if(s==='car-o-liner'||s==='caroliner')return'Car-O-Liner';if(s==='blackhawk'||s==='black hawk')return'BlackHawk';return null};
-    let detailRows=[],period={year:null,month:null};
+    const activeBrands=new Set(['JOSAM','Car-O-Liner','BlackHawk']);
 
-    function ownerFor(r){
-      const b=brandOf(r.Brand),c=String(r.CtyDes||r.Country||'').trim(),d=String(r.Director||'').trim();
-      if(!b||!c)return null;
-      if(b==='Josam'&&JOSAM_EXCLUDED.has(c))return null;
-      if(d==='Export')return'Ruslan Sollano';
-      if(d!=='Europe East')return null;
-      if(c==='Austria')return b==='Josam'?null:'Sergej';
-      if(BALTICS_SOUTH.has(c))return'Mindaugas Deikus';
-      if(c==='Bulgaria')return'Ruslan Sollano';
-      return'Michal Adamiec';
+    const style=document.createElement('style');
+    style.textContent=`
+      #undercarOverview{grid-template-columns:repeat(6,1fr)}
+      .brandToggleGroup{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto}
+      .brandToggle{display:flex;align-items:center;gap:5px;border:1px solid #d7dade;border-radius:999px;padding:5px 8px;background:#fff;font-size:10px;font-weight:800;cursor:pointer;user-select:none}
+      .brandToggle input{accent-color:var(--blue);margin:0}
+      .brandToggle.off{opacity:.45;background:#f5f6f7}
+      #collisionBrandBody tr.brandInactive td{opacity:.35}
+      @media(max-width:900px){.collisionBlock .businessHead{align-items:flex-start;flex-wrap:wrap}.brandToggleGroup{order:3;width:100%;margin-left:0}}
+    `;
+    document.head.appendChild(style);
+
+    function cleanUndercar(){
+      const box=document.getElementById('undercarOverview');
+      if(!box)return;
+      [...box.children].forEach(kpi=>{
+        const label=(kpi.querySelector('span')?.textContent||'').trim().toLowerCase();
+        if(label==='order entered'||label==='sales entered')kpi.remove();
+      });
     }
-    async function ensureXlsx(){
-      if(globalThis.XLSX)return;
-      const existing=[...document.scripts].find(s=>/xlsx(\.full)?\.min\.js/i.test(s.src||''));
-      if(existing){await new Promise((res,rej)=>{if(globalThis.XLSX)return res();existing.addEventListener('load',res,{once:true});existing.addEventListener('error',()=>rej(new Error('XLSX reader could not be loaded')),{once:true});});return;}
-      await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';s.onload=res;s.onerror=()=>rej(new Error('XLSX reader could not be loaded'));document.head.appendChild(s);});
+
+    function parseMoney(text){
+      const s=String(text||'').replace(/[^0-9+\-.]/g,'');
+      const v=Number(s);return Number.isFinite(v)?v:0;
     }
-    function metric(rows){
-      const aop=`${period.year} AOP`,act=`${period.year} ACT`,cm=period.month,cy=period.year;
-      let aopM=0,actual=0,o0=0,o1=0,aopY=0,closed=0;
-      for(const r of rows){
-        if(r.year!==cy)continue;
-        if(r.status===aop){if(r.month===cm)aopM+=r.value;if(r.month<=cm)aopY+=r.value;}
-        else if(r.status===act&&r.month<cm)closed+=r.value;
-        else if(r.status==='Actual'&&r.month===cm)actual+=r.value;
-        else if(r.status==='Ord0'&&r.month===cm)o0+=r.value;
-        else if(r.status==='Ord1'&&r.month===cm)o1+=r.value;
+    function findBrandRow(name){
+      return [...document.querySelectorAll('#collisionBrandBody tr')].find(r=>(r.cells?.[0]?.textContent||'').trim().toLowerCase()===name.toLowerCase());
+    }
+    function valuesFromRow(row){
+      if(!row||row.cells.length<8)return null;
+      return {target:parseMoney(row.cells[1].textContent),actual:parseMoney(row.cells[2].textContent),o0:parseMoney(row.cells[3].textContent),o1:parseMoney(row.cells[4].textContent)};
+    }
+    function add(a,b){return{target:a.target+b.target,actual:a.actual+b.actual,o0:a.o0+b.o0,o1:a.o1+b.o1};}
+    function zero(){return{target:0,actual:0,o0:0,o1:0};}
+    function finish(x){x.forecast=x.actual+x.o0+x.o1;x.gap=x.forecast-x.target;x.attain=x.target?x.forecast/x.target:null;return x;}
+    function formatSigned(v){return(v>=0?'+':'')+usd.format(v);}
+    function gapClass(v){return v>=0?'good':'bad';}
+
+    function refreshBrandRows(){
+      const map={'JOSAM':'JOSAM','Car-O-Liner':'Car-O-Liner','BlackHawk':'BlackHawk'};
+      for(const [key,label] of Object.entries(map)){
+        const row=findBrandRow(label);if(row)row.classList.toggle('brandInactive',!activeBrands.has(key));
       }
-      const forecast=actual+o0+o1,ytdActual=closed+actual,ytdForecast=ytdActual+o0+o1;
-      return{aopM,actual,o0,o1,forecast,gapM:forecast-aopM,aopY,ytdActual,ytdForecast,gapY:ytdForecast-aopY};
+      const col=findBrandRow('Car-O-Liner'),bh=findBrandRow('BlackHawk'),total=findBrandRow('COL + BlackHawk TOTAL');
+      if(total&&col&&bh){
+        let x=zero();
+        if(activeBrands.has('Car-O-Liner'))x=add(x,valuesFromRow(col)||zero());
+        if(activeBrands.has('BlackHawk'))x=add(x,valuesFromRow(bh)||zero());
+        x=finish(x);
+        total.cells[1].textContent=usd.format(x.target);total.cells[2].textContent=usd.format(x.actual);total.cells[3].textContent=usd.format(x.o0);total.cells[4].textContent=usd.format(x.o1);total.cells[5].innerHTML='<b>'+usd.format(x.forecast)+'</b>';total.cells[6].innerHTML='<b>'+formatSigned(x.gap)+'</b>';total.cells[6].classList.remove('good','bad');total.cells[6].classList.add(gapClass(x.gap));total.cells[7].innerHTML='<b>'+(x.attain==null?'—':pctFmt.format(x.attain))+'</b>';total.cells[7].classList.remove('good','bad');if(x.attain!=null)total.cells[7].classList.add(x.attain>=1?'good':'bad');
+      }
     }
-    function add(a,b){const o={};for(const k of ['aopM','actual','o0','o1','forecast','gapM','aopY','ytdActual','ytdForecast','gapY'])o[k]=n(a[k])+n(b[k]);return o;}
-    function row(label,b,x,cls=''){
-      return `<tr class="${cls}"><td>${safe(label)}</td><td><span class="tag">${safe(b)}</span></td><td class="num sepM">${usd.format(x.aopM)}</td><td class="num">${usd.format(x.actual)}</td><td class="num">${usd.format(x.o0)}</td><td class="num">${usd.format(x.o1)}</td><td class="num"><b>${usd.format(x.forecast)}</b></td><td class="num ${gapClass(x.gapM)}"><b>${signed(x.gapM)}</b></td><td class="num sepY">${usd.format(x.aopY)}</td><td class="num">${usd.format(x.ytdActual)}</td><td class="num"><b>${usd.format(x.ytdForecast)}</b></td><td class="num ${gapClass(x.gapY)}"><b>${signed(x.gapY)}</b></td></tr>`;
+
+    function recalcCollisionTotal(){
+      const rows={
+        'JOSAM':valuesFromRow(findBrandRow('JOSAM')),
+        'Car-O-Liner':valuesFromRow(findBrandRow('Car-O-Liner')),
+        'BlackHawk':valuesFromRow(findBrandRow('BlackHawk'))
+      };
+      if(!rows.JOSAM&&!rows['Car-O-Liner']&&!rows.BlackHawk)return;
+      let t=zero();
+      for(const b of activeBrands){if(rows[b])t=add(t,rows[b]);}
+      t=finish(t);
+      const box=document.getElementById('collisionOverview');
+      if(box)box.innerHTML=`
+        <div class="execKpi"><span>Actual</span><b>${usd.format(t.actual)}</b></div>
+        <div class="execKpi"><span>Ord0</span><b>${usd.format(t.o0)}</b></div>
+        <div class="execKpi"><span>Ord1</span><b>${usd.format(t.o1)}</b></div>
+        <div class="execKpi emphasis"><span>Forecast</span><b>${usd.format(t.forecast)}</b></div>
+        <div class="execKpi"><span>Monthly AOP</span><b>${usd.format(t.target)}</b></div>
+        <div class="execKpi"><span>Gap vs AOP</span><b class="${gapClass(t.gap)}">${formatSigned(t.gap)}</b></div>
+        <div class="execKpi"><span>AOP %</span><b class="${t.attain!=null&&t.attain>=1?'good':'bad'}">${t.attain==null?'—':pctFmt.format(t.attain)}</b></div>`;
+      refreshBrandRows();
     }
-    function head(){
-      return `<tr class="collisionGroupHead"><th colspan="2">SCOPE</th><th colspan="6" class="month">${monthName(period.month).toUpperCase()} ${period.year}</th><th colspan="4" class="year">YTD ${period.year}</th></tr><tr><th>Owner / Country</th><th>Brand</th><th class="num sepM">AOP</th><th class="num">Actual</th><th class="num">Ord0</th><th class="num">Ord1</th><th class="num">Forecast</th><th class="num">Gap</th><th class="num sepY">AOP YTD</th><th class="num">Actual YTD</th><th class="num">Forecast YTD</th><th class="num">Gap YTD</th></tr>`;
+
+    function installToggles(){
+      const head=document.querySelector('#overview .collisionBlock .businessHead');
+      if(!head||head.querySelector('.brandToggleGroup'))return;
+      const group=document.createElement('div');group.className='brandToggleGroup';
+      for(const b of ['JOSAM','Car-O-Liner','BlackHawk']){
+        const label=document.createElement('label');label.className='brandToggle';
+        const input=document.createElement('input');input.type='checkbox';input.checked=true;input.dataset.brand=b;
+        const txt=document.createElement('span');txt.textContent=b;
+        input.addEventListener('change',()=>{if(input.checked)activeBrands.add(b);else activeBrands.delete(b);label.classList.toggle('off',!input.checked);recalcCollisionTotal();});
+        label.append(input,txt);group.appendChild(label);
+      }
+      const currency=head.querySelector('.currency');head.insertBefore(group,currency||null);
     }
-    function render(){
-      if(!detailRows.length)return;
-      const mgr=document.getElementById('collisionManagerDetail')?.value||'ALL',br=document.getElementById('collisionBrandDetail')?.value||'ALL';
-      const f=detailRows.filter(r=>(mgr==='ALL'||r.manager===mgr)&&(br==='ALL'||r.brand===br));
-      const t=metric(f),k=document.getElementById('collisionDetailKpis');
-      if(k)k.innerHTML=`<div class="card miniKpi"><div class="label">Month AOP</div><div class="value">${usd.format(t.aopM)}</div></div><div class="card miniKpi"><div class="label">Actual</div><div class="value">${usd.format(t.actual)}</div></div><div class="card miniKpi"><div class="label">Ord0 + Ord1</div><div class="value">${usd.format(t.o0+t.o1)}</div></div><div class="card miniKpi"><div class="label">Month Forecast</div><div class="value">${usd.format(t.forecast)}</div><div class="muted ${gapClass(t.gapM)}">${signed(t.gapM)} vs AOP</div></div><div class="card miniKpi"><div class="label">YTD Forecast</div><div class="value">${usd.format(t.ytdForecast)}</div></div><div class="card miniKpi"><div class="label">YTD Gap</div><div class="value ${gapClass(t.gapY)}">${signed(t.gapY)}</div><div class="muted">vs ${usd.format(t.aopY)} AOP</div></div>`;
-      const bt=document.getElementById('collisionDetailBrandTable');
-      if(bt){bt.querySelector('thead').innerHTML=head();let bh='',bm={};for(const b of BRAND_ORDER){bm[b]=metric(f.filter(r=>r.brand===b));bh+=row('Europe East',b,bm[b]);}bh+=row('Europe East','COL + BlackHawk',add(bm['Car-O-Liner'],bm['BlackHawk']),'total');bt.querySelector('tbody').innerHTML=bh;}
-      const dt=document.getElementById('collisionDetailTable');
-      if(dt){dt.querySelector('thead').innerHTML=head();let dh='';for(const m of (mgr==='ALL'?MANAGER_ORDER:[mgr])){const mr=f.filter(r=>r.manager===m);if(!mr.length)continue;dh+=`<tr class="mgr"><td colspan="12">${safe(m)}</td></tr>`;for(const c of [...new Set(mr.map(r=>r.country))].sort()){const cr=mr.filter(r=>r.country===c);for(const b of (br==='ALL'?BRAND_ORDER:[br]).filter(b=>cr.some(r=>r.brand===b)))dh+=row(c,b,metric(cr.filter(r=>r.brand===b)));}dh+=row(m,'TOTAL',metric(mr),'total');}dt.querySelector('tbody').innerHTML=dh||'<tr><td colspan="12">No matching data</td></tr>';}
-      const src=document.getElementById('collisionDetailSource');if(src)src.textContent=`${monthName(period.month)} ${period.year} · USD`;
-    }
-    async function loadDetail(file){
-      const src=document.getElementById('collisionDetailSource');
-      try{
-        if(src)src.textContent='Reading '+file.name+'…';
-        await ensureXlsx();const buf=await file.arrayBuffer();
-        const wb=XLSX.read(buf,{type:'array',dense:true,cellDates:false,sheets:['_002_TableCreation']});const ws=wb.Sheets['_002_TableCreation'];if(!ws)throw new Error('Sheet _002_TableCreation not found');
-        const rows=XLSX.utils.sheet_to_json(ws,{defval:null,raw:true});let y=-Infinity,m=-Infinity;
-        for(const r of rows){if(String(r['Sales Status']||'')!=='Actual'||!ownerFor(r))continue;const yy=n(r.SnaponYear),mm=n(r.SnaponMonth);if(yy>y||(yy===y&&mm>m)){y=yy;m=mm;}}
-        if(!Number.isFinite(y)||!Number.isFinite(m))throw new Error('Current Collision month not found');period={year:y,month:m};
-        const aop=`${y} AOP`,act=`${y} ACT`;detailRows=[];
-        for(const r of rows){const st=String(r['Sales Status']||''),yy=n(r.SnaponYear),mm=n(r.SnaponMonth),b=brandOf(r.Brand),manager=ownerFor(r);if(!b||!manager||![aop,act,'Actual','Ord0','Ord1'].includes(st))continue;detailRows.push({manager,country:String(r.CtyDes||r.Country||'').trim(),brand:b,status:st,year:yy,month:mm,value:n(r['Net Price Extended'])});}
-        if(src)src.textContent=`Loaded · ${file.name} · ${monthName(m)} ${y}`;render();
-      }catch(e){console.error(e);if(src)src.textContent='Load error · '+(e?.message||String(e));}
-    }
-    const cf=document.getElementById('collisionFile');
-    cf?.addEventListener('change',e=>{const f=e.target.files?.[0];if(f)loadDetail(f);},true);
-    document.getElementById('collisionManagerDetail')?.addEventListener('change',render);
-    document.getElementById('collisionBrandDetail')?.addEventListener('change',render);
+
+    installToggles();cleanUndercar();
+    let scheduled=false;
+    function schedule(){if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;cleanUndercar();recalcCollisionTotal();});}
+    const u=document.getElementById('undercarOverview');if(u)new MutationObserver(schedule).observe(u,{childList:true,subtree:true});
+    const c=document.getElementById('collisionBrandBody');if(c)new MutationObserver(schedule).observe(c,{childList:true,subtree:true,characterData:true});
+    setTimeout(schedule,200);setTimeout(schedule,900);setTimeout(schedule,1800);
   }catch(e){console.error(e);if(status)status.textContent='App load error: '+(e?.message||String(e));}
 })();
