@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.27';
+  const UI_VERSION='2026.09.17.28';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -81,7 +81,7 @@
   }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026091727&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026091728&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
@@ -118,7 +118,8 @@
 
     function styleCollisionOverviewBar(){
       const box=document.getElementById('collisionDetailKpis');
-      if(!box||box.dataset.undercarStyle==='1')return;
+      if(!box)return;
+      if(box.querySelector('.goalSection.monthly')&&box.querySelector('.goalSection.annual'))return;
       const monthAop=cardByLabel(box,'Month AOP');
       const actual=cardByLabel(box,'Actual');
       const orders=cardByLabel(box,'Orders')||cardByLabel(box,'Ord0 + Ord1');
@@ -152,7 +153,6 @@
             ${collisionGoalBox('YTD Forecast',ytdForecast,ytdTarget,ytdGap,`${ytdGap>=0?'Above YTD AOP':'Missing to YTD AOP'} <b class="${cls(ytdGap)}">${signed(ytdGap)}</b>`)}
           </div>
         </section>`;
-      box.dataset.undercarStyle='1';
     }
 
     function makeCountryManagerMonthly(){
@@ -195,9 +195,10 @@
     }
     const detailPane=document.getElementById('collisionDetail');
     if(detailPane)new MutationObserver(syncCollisionUi).observe(detailPane,{childList:true,subtree:true});
-    document.querySelector('.tab[data-tab="collisionDetail"]')?.addEventListener('click',()=>{setTimeout(syncCollisionUi,80);});
+    document.querySelector('.tab[data-tab="collisionDetail"]')?.addEventListener('click',()=>{setTimeout(syncCollisionUi,80);setTimeout(syncCollisionUi,400);});
     document.getElementById('collisionManagerDetail')?.addEventListener('change',()=>setTimeout(syncCollisionUi,120));
-    setTimeout(syncCollisionUi,350);
+    document.getElementById('collisionFile')?.addEventListener('change',()=>{setTimeout(syncCollisionUi,500);setTimeout(syncCollisionUi,1500);setTimeout(syncCollisionUi,3000);});
+    setTimeout(syncCollisionUi,350);setTimeout(syncCollisionUi,1200);
 
     const undercar=document.getElementById('file');
     const collision=document.getElementById('collisionFile');
