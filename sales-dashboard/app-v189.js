@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.26';
+  const UI_VERSION='2026.09.17.27';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -46,13 +46,42 @@
   };
 
   const DB_NAME='east-europe-sales-dashboard',DB_VERSION=1,STORE='files';
+  const manualUpload={undercar:false,collision:false};
   function openDb(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(STORE))db.createObjectStore(STORE);};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
-  async function saveFile(key,file){if(!file)return;try{const db=await openDb();await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put({blob:file,name:file.name,type:file.type,lastModified:file.lastModified,savedAt:Date.now()},key);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});db.close();}catch(e){console.warn(key+' file could not be cached',e);}}
+  async function saveFile(key,file){
+    if(!file)return;
+    try{
+      const db=await openDb();
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction(STORE,'readwrite');
+        const store=tx.objectStore(STORE);
+        store.delete(key);
+        store.put({blob:file,name:file.name,type:file.type,lastModified:file.lastModified,savedAt:Date.now()},key);
+        tx.oncomplete=resolve;
+        tx.onerror=()=>reject(tx.error);
+        tx.onabort=()=>reject(tx.error);
+      });
+      db.close();
+      try{localStorage.setItem('sales-dashboard-latest-'+key,JSON.stringify({name:file.name,lastModified:file.lastModified,savedAt:Date.now()}));}catch{}
+    }catch(e){console.warn(key+' file could not be cached',e);}
+  }
   async function getFile(key,fallbackName,type){try{const db=await openDb();const rec=await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly');const req=tx.objectStore(STORE).get(key);req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);});db.close();if(!rec?.blob)return null;return new File([rec.blob],rec.name||fallbackName,{type:rec.type||type,lastModified:rec.lastModified||Date.now()});}catch(e){return null;}}
-  async function restoreInput(id,key,fallbackName,type){const input=document.getElementById(id);if(!input||input.files?.length)return;const file=await getFile(key,fallbackName,type);if(!file)return;try{const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){console.warn(key+' automatic restore not supported',e);}}
+  async function restoreInput(id,key,fallbackName,type){
+    if(manualUpload[key])return;
+    const input=document.getElementById(id);
+    if(!input||input.files?.length)return;
+    const file=await getFile(key,fallbackName,type);
+    if(!file||manualUpload[key])return;
+    try{
+      const dt=new DataTransfer();
+      dt.items.add(file);
+      input.files=dt.files;
+      input.dispatchEvent(new Event('change',{bubbles:true}));
+    }catch(e){console.warn(key+' automatic restore not supported',e);}
+  }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026091726&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026091727&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
@@ -172,8 +201,8 @@
 
     const undercar=document.getElementById('file');
     const collision=document.getElementById('collisionFile');
-    undercar?.addEventListener('change',()=>{const f=undercar.files?.[0];if(f)saveFile('undercar',f);},{capture:true});
-    collision?.addEventListener('change',()=>{const f=collision.files?.[0];if(f)saveFile('collision',f);},{capture:true});
+    undercar?.addEventListener('change',()=>{const f=undercar.files?.[0];if(f){manualUpload.undercar=true;saveFile('undercar',f);}},{capture:true});
+    collision?.addEventListener('change',()=>{const f=collision.files?.[0];if(f){manualUpload.collision=true;saveFile('collision',f);}},{capture:true});
     setTimeout(()=>restoreInput('file','undercar','Undercar.xls','application/vnd.ms-excel'),900);
 
     let latestVersion=UI_VERSION;
