@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.24';
+  const UI_VERSION='2026.09.17.25';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -27,6 +27,12 @@
     let out=String(code||'')
       .replace(/throw new Error\('Version upgrade point not found'\)/g,"console.warn('Version marker mismatch - continuing')");
 
+    // The legacy base app has its own version polling. It compares against an old
+    // internal APP_VERSION and can re-show "Update available" after a successful update.
+    // Disable that old poll; this bootstrap is the single update controller.
+    out=out.replace(/loadSnapshot\(\);\s*checkUpdate\(\);\s*setInterval\(checkUpdate,\s*300000\);/g,'loadSnapshot();');
+    out=out.replace(/checkUpdate\(\);\s*setInterval\(checkUpdate,\s*300000\);/g,'');
+
     // Collision Europe East scope: Japan must never be assigned to Ruslan/Export
     // or included in Collision totals. Patch both overview and detail ownerFor layers.
     out=out.replace(/if\(!b\|\|!c\)return null;/g,"if(!b||!c)return null;if(/^japan$/i.test(c))return null;");
@@ -38,7 +44,7 @@
     try{
       const raw=typeof input==='string'?input:(input?.url||'');
       const url=new URL(raw,location.href);
-      const isLayer=/\/app-v\d+(?:-core)?\.js$/i.test(url.pathname)||/\/app-v184-base\.js$/i.test(url.pathname);
+      const isLayer=/\/app-v\d+(?:-core)?\.js$/i.test(url.pathname)||/\/app-v184-base\.js$/i.test(url.pathname)||/\/app\.js$/i.test(url.pathname);
       if(!isLayer)return res;
       const text=patchCompatibility(await res.text());
       return new Response(text,{status:res.status,statusText:res.statusText,headers:res.headers});
@@ -55,7 +61,7 @@
   async function restoreInput(id,key,fallbackName,type){const input=document.getElementById(id);if(!input||input.files?.length)return;const file=await getFile(key,fallbackName,type);if(!file)return;try{const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){console.warn(key+' automatic restore not supported',e);}}
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026091724&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026091725&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
@@ -152,11 +158,9 @@
     }
     const detailPane=document.getElementById('collisionDetail');
     if(detailPane)new MutationObserver(syncCollisionUi).observe(detailPane,{childList:true,subtree:true});
-    document.querySelector('.tab[data-tab="collisionDetail"]')?.addEventListener('click',()=>{setTimeout(syncCollisionUi,60);setTimeout(syncCollisionUi,350);});
-    document.getElementById('collisionFile')?.addEventListener('change',()=>{setTimeout(syncCollisionUi,600);setTimeout(syncCollisionUi,1600);setTimeout(syncCollisionUi,3200);});
-    document.getElementById('collisionManagerDetail')?.addEventListener('change',()=>setTimeout(syncCollisionUi,150));
-    document.getElementById('collisionDetail')?.addEventListener('change',()=>setTimeout(syncCollisionUi,150));
-    setTimeout(syncCollisionUi,250);setTimeout(syncCollisionUi,1000);setTimeout(syncCollisionUi,2200);
+    document.querySelector('.tab[data-tab="collisionDetail"]')?.addEventListener('click',()=>{setTimeout(syncCollisionUi,80);});
+    document.getElementById('collisionManagerDetail')?.addEventListener('change',()=>setTimeout(syncCollisionUi,120));
+    setTimeout(syncCollisionUi,350);
 
     const undercar=document.getElementById('file');
     const collision=document.getElementById('collisionFile');
@@ -164,9 +168,12 @@
     collision?.addEventListener('change',()=>{const f=collision.files?.[0];if(f)saveFile('collision',f);},{capture:true});
     setTimeout(()=>restoreInput('file','undercar','Undercar.xls','application/vnd.ms-excel'),900);
 
-    // Robust update button: own version check + cache-busting reload.
+    // Single update controller. The old base-app update poll is disabled above.
     let latestVersion=UI_VERSION;
+    let updateInFlight=false;
     async function syncUpdate(){
+      if(updateInFlight)return;
+      updateInFlight=true;
       try{
         const r=await realFetch('./version.json?ts='+Date.now(),{cache:'no-store'});
         if(!r.ok)return;
@@ -180,10 +187,11 @@
           b.title=j.message||('Version '+latestVersion+' available');
         }else{
           b.classList.remove('show');
+          b.disabled=false;
           b.textContent='↻ Update available';
           b.title='';
         }
-      }catch(e){console.warn('Update check failed',e);}
+      }catch(e){console.warn('Update check failed',e);}finally{updateInFlight=false;}
     }
     function installUpdateButton(){
       const old=document.getElementById('updateBtn');
@@ -192,6 +200,7 @@
       b.id='updateBtn';
       old.replaceWith(b);
       b.addEventListener('click',async()=>{
+        if(b.disabled)return;
         b.disabled=true;
         b.classList.add('show');
         b.textContent='Updating…';
@@ -200,15 +209,15 @@
           if('serviceWorker' in navigator){const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.unregister()));}
         }catch(e){console.warn('Cache cleanup failed',e);}
         const u=new URL(location.href);
-        u.searchParams.set('v',latestVersion||Date.now().toString());
+        u.search='';
+        u.searchParams.set('v',latestVersion||UI_VERSION);
         u.searchParams.set('fresh',Date.now().toString());
         location.replace(u.toString());
       });
     }
     installUpdateButton();
     syncUpdate();
-    setInterval(syncUpdate,45000);
-    window.addEventListener('pageshow',syncUpdate);
+    setInterval(syncUpdate,300000);
 
     setTimeout(()=>{if(status&&/Version upgrade point not found/i.test(status.textContent||''))status.textContent='';},1500);
   }catch(e){
