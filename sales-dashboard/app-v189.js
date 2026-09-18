@@ -1,11 +1,9 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.25';
+  const UI_VERSION='2026.09.17.26';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
-  // If a cached bootstrap is loaded after an update, force-fetch the requested build
-  // and execute it once. This makes the update flow independent from browser HTTP cache.
   const pageUrl=new URL(location.href);
   const requestedVersion=pageUrl.searchParams.get('v')||pageUrl.searchParams.get('version');
   if(requestedVersion&&requestedVersion!==UI_VERSION){
@@ -26,15 +24,8 @@
   function patchCompatibility(code){
     let out=String(code||'')
       .replace(/throw new Error\('Version upgrade point not found'\)/g,"console.warn('Version marker mismatch - continuing')");
-
-    // The legacy base app has its own version polling. It compares against an old
-    // internal APP_VERSION and can re-show "Update available" after a successful update.
-    // Disable that old poll; this bootstrap is the single update controller.
     out=out.replace(/loadSnapshot\(\);\s*checkUpdate\(\);\s*setInterval\(checkUpdate,\s*300000\);/g,'loadSnapshot();');
     out=out.replace(/checkUpdate\(\);\s*setInterval\(checkUpdate,\s*300000\);/g,'');
-
-    // Collision Europe East scope: Japan must never be assigned to Ruslan/Export
-    // or included in Collision totals. Patch both overview and detail ownerFor layers.
     out=out.replace(/if\(!b\|\|!c\)return null;/g,"if(!b||!c)return null;if(/^japan$/i.test(c))return null;");
     return out;
   }
@@ -61,19 +52,19 @@
   async function restoreInput(id,key,fallbackName,type){const input=document.getElementById(id);if(!input||input.files?.length)return;const file=await getFile(key,fallbackName,type);if(!file)return;try{const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){console.warn(key+' automatic restore not supported',e);}}
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026091725&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026091726&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
     const rule=document.querySelector('#collisionDetail .collisionRule');
     if(rule)rule.textContent=rule.textContent.replace('Ruslan = Bulgaria + Export','Ruslan = Bulgaria + Export (excl. Japan)');
 
-    // Only the top Collision overview strip should visually match Undercar Detail.
     const collisionStyle=document.createElement('style');
     collisionStyle.textContent=`
       #collisionDetailKpis.collisionOverviewGoals{grid-template-columns:1.35fr .85fr!important;gap:10px!important}
-      #collisionDetailKpis .collisionMonthGoalRow{grid-template-columns:repeat(3,1fr)}
+      #collisionDetailKpis .collisionMonthGoalRow{grid-template-columns:1fr 1fr}
       #collisionDetailKpis .collisionYtdGoalRow{grid-template-columns:1fr}
+      #collisionDetailKpis .goalMain small{font-size:10px;color:#8a8f96}
       #collisionCountryCompactTable.monthOnly{min-width:820px!important}
       @media(max-width:1000px){#collisionDetailKpis.collisionOverviewGoals{grid-template-columns:1fr!important}}
       @media(max-width:700px){#collisionDetailKpis .collisionMonthGoalRow{grid-template-columns:1fr}}
@@ -82,7 +73,19 @@
 
     const getText=(root,sel)=>root?.querySelector(sel)?.textContent?.trim()||'';
     const cardByLabel=(box,label)=>[...box.children].find(c=>getText(c,'.label').toLowerCase()===label.toLowerCase());
-    const goalBox=(title,main,sub='',meta='')=>`<div class="goalBox"><div class="goalTitle">${title}</div><div class="goalMain"><span>${main||'—'}</span></div>${meta?`<div class="goalMeta">${meta}</div>`:''}${sub?`<div class="goalSub">${sub}</div>`:''}</div>`;
+    const money=text=>{const s=String(text||'').replace(/,/g,'').replace(/[^0-9+\-.]/g,'');const v=Number(s);return Number.isFinite(v)?v:0;};
+    const usd=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
+    const pctFmt=new Intl.NumberFormat('de-DE',{style:'percent',maximumFractionDigits:1});
+    const signed=v=>(v>=0?'+':'')+usd.format(v);
+    const cls=v=>v>=0?'good':'bad';
+    function gapFromNote(text){
+      const m=String(text||'').match(/([+-]?\$?[\d,]+(?:\.\d+)?)\s*vs\s*AOP/i);
+      return m?money(m[1]):0;
+    }
+    function collisionGoalBox(title,actual,target,gap,sub=''){
+      const ratio=target?actual/target:null;
+      return `<div class="goalBox"><div class="goalTitle">${title}</div><div class="goalMain"><span>${usd.format(actual)}</span><small>of ${usd.format(target)}</small></div><div class="goalMeta"><b>${ratio==null?'—':pctFmt.format(ratio)}</b><strong class="${cls(gap)}">${signed(gap)}</strong></div>${sub?`<div class="goalSub">${sub}</div>`:''}</div>`;
+    }
 
     function styleCollisionOverviewBar(){
       const box=document.getElementById('collisionDetailKpis');
@@ -91,30 +94,38 @@
       const actual=cardByLabel(box,'Actual');
       const orders=cardByLabel(box,'Orders')||cardByLabel(box,'Ord0 + Ord1');
       const forecast=cardByLabel(box,'Month Forecast');
-      const aopPct=cardByLabel(box,'AOP %');
       const ytd=cardByLabel(box,'YTD Forecast');
-      if(!monthAop||!actual||!orders||!forecast)return;
-      const value=c=>getText(c,'.value')||'—';
-      const forecastNote=getText(forecast,'.muted');
-      const ytdNote=getText(ytd,'.muted');
+      if(!monthAop||!actual||!orders||!forecast||!ytd)return;
+
+      const monthTarget=money(getText(monthAop,'.value'));
+      const actualValue=money(getText(actual,'.value'));
+      const ordersValue=money(getText(orders,'.value'));
+      const forecastValue=money(getText(forecast,'.value'));
+      const monthActualGap=actualValue-monthTarget;
+      const monthForecastGap=forecastValue-monthTarget;
+
+      const ytdForecast=money(getText(ytd,'.value'));
+      const ytdGap=gapFromNote(getText(ytd,'.muted'));
+      const ytdTarget=ytdForecast-ytdGap;
+
       box.className='goalsGrid collisionOverviewGoals';
       box.innerHTML=`
         <section class="goalSection monthly">
-          <div class="sectionHead"><span>MONTH</span><b>Current month performance</b></div>
+          <div class="sectionHead"><span>MONTH</span><b>Current month target</b></div>
           <div class="goalRow collisionMonthGoalRow">
-            ${goalBox('Actual',value(actual),'AOP '+value(monthAop))}
-            ${goalBox('Orders',value(orders),'Current month orders')}
-            ${goalBox('Forecast',value(forecast),forecastNote,`<b>${value(aopPct)}</b><strong>vs AOP</strong>`)}
+            ${collisionGoalBox('Actual',actualValue,monthTarget,monthActualGap,'')}
+            ${collisionGoalBox('Forecast incl. Orders',forecastValue,monthTarget,monthForecastGap,`Orders <b>${usd.format(ordersValue)}</b>`)}
           </div>
         </section>
         <section class="goalSection annual">
-          <div class="sectionHead"><span>YTD</span><b>Year-to-date forecast</b></div>
-          <div class="goalRow collisionYtdGoalRow">${goalBox('YTD Forecast',value(ytd),ytdNote)}</div>
+          <div class="sectionHead"><span>YEAR</span><b>YTD target</b></div>
+          <div class="goalRow collisionYtdGoalRow">
+            ${collisionGoalBox('YTD Forecast',ytdForecast,ytdTarget,ytdGap,`${ytdGap>=0?'Above YTD AOP':'Missing to YTD AOP'} <b class="${cls(ytdGap)}">${signed(ytdGap)}</b>`)}
+          </div>
         </section>`;
       box.dataset.undercarStyle='1';
     }
 
-    // Manager / Country Performance is a current-month table, so remove YTD columns there only.
     function makeCountryManagerMonthly(){
       const table=document.getElementById('collisionCountryCompactTable');
       if(!table||table.dataset.monthOnly==='1'||!table.tHead||!table.tBodies?.[0])return;
@@ -124,13 +135,11 @@
       const labels=[...labelsRow.cells].map(c=>(c.textContent||'').trim().toLowerCase());
       const ytdStart=labels.findIndex(x=>x.includes('ytd'));
       if(ytdStart<0)return;
-
       for(const r of [...table.tBodies[0].rows]){
         if(r.cells.length===1&&r.cells[0].colSpan>1){r.cells[0].colSpan=ytdStart;continue;}
         for(let i=r.cells.length-1;i>=ytdStart;i--)r.deleteCell(i);
       }
       for(let i=labelsRow.cells.length-1;i>=ytdStart;i--)labelsRow.deleteCell(i);
-
       const groupRow=rows[0];
       for(const cell of [...groupRow.cells]){
         const txt=(cell.textContent||'').trim().toLowerCase();
@@ -138,7 +147,6 @@
       }
       const monthCell=[...groupRow.cells].find(c=>c.classList.contains('month'));
       if(monthCell)monthCell.colSpan=Math.max(1,ytdStart-1);
-
       table.classList.add('monthOnly');
       table.dataset.monthOnly='1';
       const panel=table.closest('.card.panel');
@@ -168,7 +176,6 @@
     collision?.addEventListener('change',()=>{const f=collision.files?.[0];if(f)saveFile('collision',f);},{capture:true});
     setTimeout(()=>restoreInput('file','undercar','Undercar.xls','application/vnd.ms-excel'),900);
 
-    // Single update controller. The old base-app update poll is disabled above.
     let latestVersion=UI_VERSION;
     let updateInFlight=false;
     async function syncUpdate(){
