@@ -1,1 +1,1 @@
-{"version":"2026.09.17.24","updated":"2026-09-17","message":"Collision Detail: top summary strip now matches Undercar styling; Manager/Country view is current-month only"}
+{"version":"2026.09.17.25","updated":"2026-09-18","message":"Stability fix: single update controller, legacy update polling disabled, background update checks reduced"}
