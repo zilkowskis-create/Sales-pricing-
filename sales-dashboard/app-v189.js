@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.28';
+  const UI_VERSION='2026.09.17.29';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -81,9 +81,34 @@
   }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026091728&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026091729&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
+
+    // Monthly Overview: use the same compact target label for both business lines.
+    let monthlyLabelScheduled=false;
+    function normalizeMonthlyOverviewLabels(){
+      const overview=document.getElementById('overview');
+      if(!overview)return;
+      const targetLabels=new Set(['monthly target','month target','monthly aop','month aop']);
+      for(const el of overview.querySelectorAll('span,.label,.goalTitle,th')){
+        const txt=(el.textContent||'').trim().toLowerCase();
+        if(targetLabels.has(txt))el.textContent='Target';
+      }
+    }
+    function scheduleMonthlyOverviewLabels(){
+      if(monthlyLabelScheduled)return;
+      monthlyLabelScheduled=true;
+      requestAnimationFrame(()=>{
+        monthlyLabelScheduled=false;
+        normalizeMonthlyOverviewLabels();
+      });
+    }
+    const overviewPane=document.getElementById('overview');
+    if(overviewPane)new MutationObserver(scheduleMonthlyOverviewLabels).observe(overviewPane,{childList:true,subtree:true,characterData:true});
+    document.querySelector('.tab[data-tab="overview"]')?.addEventListener('click',()=>setTimeout(scheduleMonthlyOverviewLabels,60));
+    setTimeout(scheduleMonthlyOverviewLabels,200);
+    setTimeout(scheduleMonthlyOverviewLabels,900);
 
     const rule=document.querySelector('#collisionDetail .collisionRule');
     if(rule)rule.textContent=rule.textContent.replace('Ruslan = Bulgaria + Export','Ruslan = Bulgaria + Export (excl. Japan)');
