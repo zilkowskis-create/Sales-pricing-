@@ -15,6 +15,26 @@
       #team:not(.undercarFullOE) .topOrderEntered{display:none!important}
       #team.undercarFullOE th.undercarOrderEntered,
       #team.undercarFullOE td.undercarOrderEntered{display:table-cell!important}
+
+      /* Order Entered should use the same font weight as the surrounding columns. */
+      #countryTable th.orderEnteredMonth,
+      #countryTable th.undercarOrderEntered{font-weight:700!important}
+      #countryTable tbody tr:not(.mgrRow):not(.teamRow) td.orderEnteredMonth,
+      #countryTable tbody tr:not(.mgrRow):not(.teamRow) td.undercarOrderEntered{font-weight:400!important}
+
+      /* Click-to-highlight country rows in both detail views. */
+      #countryTable tbody tr.countrySelected td{background:#fff0f1!important}
+      #countryTable tbody tr.countrySelected td:first-child{box-shadow:inset 4px 0 0 var(--red)}
+      #collisionCountryCompactTable tbody tr.countrySelected td,
+      #collisionDetailTable tbody tr.countrySelected td{background:#eef5ff!important}
+      #collisionCountryCompactTable tbody tr.countrySelected td:first-child,
+      #collisionDetailTable tbody tr.countrySelected td:first-child{box-shadow:inset 4px 0 0 var(--blue)}
+      #countryTable tbody tr.countrySelectable,
+      #collisionCountryCompactTable tbody tr.countrySelectable,
+      #collisionDetailTable tbody tr.countrySelectable{cursor:pointer}
+      #countryTable tbody tr.countrySelectable:hover td{background:#fff8f8}
+      #collisionCountryCompactTable tbody tr.countrySelectable:hover td,
+      #collisionDetailTable tbody tr.countrySelectable:hover td{background:#f6f9ff}
     `;
     document.head.appendChild(style);
 
@@ -54,6 +74,63 @@
     document.getElementById('fullBtn')?.addEventListener('click',()=>{setTimeout(syncFullState,0);setTimeout(syncFullState,80);});
     document.getElementById('file')?.addEventListener('change',()=>{setTimeout(syncFullState,400);setTimeout(syncFullState,1200);setTimeout(syncFullState,2400);});
     setTimeout(syncFullState,150);setTimeout(syncFullState,700);setTimeout(syncFullState,1600);
+
+    function isUndercarCountryRow(row){
+      if(!row||row.parentElement?.tagName!=='TBODY')return false;
+      if(row.classList.contains('mgrRow')||row.classList.contains('teamRow')||row.classList.contains('groupRow'))return false;
+      if(row.cells.length<2)return false;
+      const country=(row.cells[1]?.textContent||'').trim();
+      return !!country&&!/\btotal\b/i.test(country);
+    }
+
+    function isCollisionCountryRow(row,compact){
+      if(!row||row.parentElement?.tagName!=='TBODY')return false;
+      if(row.classList.contains('compactMgr')||row.classList.contains('compactTotal')||row.classList.contains('compactGrand')||row.classList.contains('mgr')||row.classList.contains('total')||row.classList.contains('collisionGrandTotal'))return false;
+      const idx=compact?0:0;
+      const country=(row.cells[idx]?.textContent||'').trim();
+      if(!country||/\btotal\b/i.test(country))return false;
+      return row.cells.length>1;
+    }
+
+    function installCountrySelection(tableId,kind){
+      const t=document.getElementById(tableId);
+      if(!t)return;
+      const compact=tableId==='collisionCountryCompactTable';
+      for(const row of t.querySelectorAll('tbody tr')){
+        const ok=kind==='undercar'?isUndercarCountryRow(row):isCollisionCountryRow(row,compact);
+        row.classList.toggle('countrySelectable',ok);
+        if(!ok)row.classList.remove('countrySelected');
+      }
+      if(t.dataset.countrySelectionInstalled==='1')return;
+      t.dataset.countrySelectionInstalled='1';
+      t.addEventListener('click',e=>{
+        const row=e.target.closest('tbody tr');
+        if(!row||!t.contains(row))return;
+        const ok=kind==='undercar'?isUndercarCountryRow(row):isCollisionCountryRow(row,compact);
+        if(!ok)return;
+        const wasSelected=row.classList.contains('countrySelected');
+        t.querySelectorAll('tbody tr.countrySelected').forEach(r=>r.classList.remove('countrySelected'));
+        if(!wasSelected)row.classList.add('countrySelected');
+      });
+    }
+
+    let countrySelectionPending=false;
+    function syncCountrySelection(){
+      if(countrySelectionPending)return;
+      countrySelectionPending=true;
+      requestAnimationFrame(()=>{
+        countrySelectionPending=false;
+        installCountrySelection('countryTable','undercar');
+        installCountrySelection('collisionCountryCompactTable','collision');
+        installCountrySelection('collisionDetailTable','collision');
+      });
+    }
+    new MutationObserver(syncCountrySelection).observe(document.body,{childList:true,subtree:true});
+    document.querySelector('.tab[data-tab="team"]')?.addEventListener('click',()=>setTimeout(syncCountrySelection,80));
+    document.querySelector('.tab[data-tab="collisionDetail"]')?.addEventListener('click',()=>setTimeout(syncCountrySelection,80));
+    document.getElementById('file')?.addEventListener('change',()=>{setTimeout(syncCountrySelection,500);setTimeout(syncCountrySelection,1600);});
+    document.getElementById('collisionFile')?.addEventListener('change',()=>{setTimeout(syncCountrySelection,700);setTimeout(syncCountrySelection,1800);setTimeout(syncCountrySelection,3200);});
+    setTimeout(syncCountrySelection,250);setTimeout(syncCountrySelection,1200);
 
     // Monthly Overview: keep Undercar Brand Performance executive-level.
     // John Bean and Cartec remain separate; every other Undercar brand is included in Hofmann.
