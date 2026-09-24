@@ -37,13 +37,13 @@
       const source=document.getElementById('collisionOverview');
       if(!source||!source.children.length)return;
       const map=sourceCards();
-      const actual=map.get('actual');
+      const actual=map.get('actual')||map.get('sales mtd');
       const forecast=map.get('forecast');
-      const aop=map.get('monthly aop')||map.get('aop');
-      const gap=map.get('gap vs aop')||map.get('gap');
-      const pct=map.get('aop %');
+      const aop=map.get('monthly aop')||map.get('month aop')||map.get('aop')||map.get('target');
+      const gap=map.get('gap vs aop')||map.get('gap')||map.get('gap vs target');
+      const pct=map.get('aop %')||map.get('target %');
       if(!actual&&!forecast)return;
-      const ordersCard=map.get('orders');
+      const ordersCard=map.get('orders')||map.get('backlog ord1');
       const o0=map.get('ord0')||map.get('order 0');
       const o1=map.get('ord1')||map.get('order 1');
       const orders=ordersCard?money(ordersCard.querySelector('b')?.textContent):money(o0?.querySelector('b')?.textContent)+money(o1?.querySelector('b')?.textContent);
@@ -51,7 +51,7 @@
       if(!out){out=document.createElement('div');out.id='collisionOverviewOrders';out.className='execGrid';source.insertAdjacentElement('afterend',out);}
       const copyValue=c=>c?.querySelector('b')?.textContent||'—';
       const copyClass=c=>c?.querySelector('b')?.className||'';
-      out.innerHTML=cardHtml('Actual',copyValue(actual),'',copyClass(actual))+cardHtml('Orders',usd.format(orders))+cardHtml('Forecast',copyValue(forecast),'emphasis',copyClass(forecast))+cardHtml('Monthly AOP',copyValue(aop),'',copyClass(aop))+cardHtml('Gap vs AOP',copyValue(gap),'',copyClass(gap))+cardHtml('AOP %',copyValue(pct),'',copyClass(pct));
+      out.innerHTML=cardHtml('Sales MTD',copyValue(actual),'',copyClass(actual))+cardHtml('Backlog Ord1',usd.format(orders))+cardHtml('Forecast',copyValue(forecast),'emphasis',copyClass(forecast))+cardHtml('Target',copyValue(aop),'',copyClass(aop))+cardHtml('Gap vs Target',copyValue(gap),'',copyClass(gap))+cardHtml('Target %',copyValue(pct),'',copyClass(pct));
     }
 
     function sourceBrandIndexes(table){
@@ -59,7 +59,7 @@
       if(!row)return null;
       const labels=[...row.cells].map(c=>norm(c.textContent));
       const find=(...names)=>labels.findIndex(x=>names.includes(x));
-      return {brand:find('brand'),aop:find('aop','monthly aop'),actual:find('actual'),orders:find('orders'),o0:find('ord0','order 0'),o1:find('ord1','order 1'),forecast:find('forecast'),gap:find('gap','gap vs aop'),pct:find('aop %')};
+      return {brand:find('brand'),aop:find('aop','monthly aop','month aop','target'),actual:find('actual','sales mtd'),orders:find('orders','backlog ord1'),o0:find('ord0','order 0'),o1:find('ord1','order 1'),forecast:find('forecast'),gap:find('gap','gap vs aop','gap vs target'),pct:find('aop %','target %')};
     }
     function renderCollisionBrandOrders(){
       const source=document.querySelector('#overview .brandMini>table:first-of-type');
@@ -68,7 +68,7 @@
       const ix=sourceBrandIndexes(source);if(!ix||ix.brand<0)return;
       let table=document.getElementById('collisionBrandOrdersTable');
       if(!table){table=document.createElement('table');table.id='collisionBrandOrdersTable';source.insertAdjacentElement('afterend',table);}
-      table.innerHTML='<thead><tr><th>Brand</th><th class="num">AOP</th><th class="num">Actual</th><th class="num">Orders</th><th class="num">Forecast</th><th class="num">Gap</th><th class="num">AOP %</th></tr></thead><tbody></tbody>';
+      table.innerHTML='<thead><tr><th>Brand</th><th class="num">Target</th><th class="num">Sales MTD</th><th class="num">Backlog Ord1</th><th class="num">Forecast</th><th class="num">Gap vs Target</th><th class="num">Target %</th></tr></thead><tbody></tbody>';
       let html='';
       for(const r of [...body.rows]){
         if(r.cells.length<5)continue;
@@ -92,11 +92,11 @@
 
     let scheduled=false;
     function refresh(){if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;renderCollisionOverviewOrders();renderCollisionBrandOrders();});}
-    const cOverview=document.getElementById('collisionOverview');if(cOverview)new MutationObserver(refresh).observe(cOverview,{childList:true,subtree:true});
+    const cOverview=document.getElementById('collisionOverview');if(cOverview)new MutationObserver(refresh).observe(cOverview,{childList:true,subtree:true,characterData:true});
     const cBrands=document.getElementById('collisionBrandBody');if(cBrands)new MutationObserver(refresh).observe(cBrands,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style']});
     document.getElementById('collisionDetail')?.addEventListener('change',()=>setTimeout(refresh,100));
     document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>setTimeout(refresh,80)));
-    if(collisionInput)collisionInput.addEventListener('change',()=>{setTimeout(refresh,500);setTimeout(refresh,1500);setTimeout(refresh,3000);});
+    if(collisionInput)collisionInput.addEventListener('change',()=>{setTimeout(refresh,300);setTimeout(refresh,800);setTimeout(refresh,1600);setTimeout(refresh,3000);});
     setTimeout(refresh,250);setTimeout(refresh,900);setTimeout(refresh,1800);setTimeout(restoreCollisionFile,650);
   }catch(e){console.error(e);if(status)status.textContent='App load error: '+(e?.message||String(e));}
 })();
