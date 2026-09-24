@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.29';
+  const UI_VERSION='2026.09.17.30';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -81,19 +81,31 @@
   }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026091729&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026091730&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
-    // Monthly Overview: use the same compact target label for both business lines.
+    // Monthly Overview: use the same KPI labels for both business lines.
     let monthlyLabelScheduled=false;
     function normalizeMonthlyOverviewLabels(){
       const overview=document.getElementById('overview');
       if(!overview)return;
-      const targetLabels=new Set(['monthly target','month target','monthly aop','month aop']);
-      for(const el of overview.querySelectorAll('span,.label,.goalTitle,th')){
+      const replacements=new Map([
+        ['actual','Sales MTD'],
+        ['orders','Backlog Ord1'],
+        ['ord0 + ord1','Backlog Ord1'],
+        ['monthly target','Target'],
+        ['month target','Target'],
+        ['monthly aop','Target'],
+        ['month aop','Target'],
+        ['aop','Target'],
+        ['gap vs aop','Gap vs Target'],
+        ['aop %','Target %']
+      ]);
+      for(const el of overview.querySelectorAll('.execKpi span,.brandMini th,.label,.goalTitle')){
         const txt=(el.textContent||'').trim().toLowerCase();
-        if(targetLabels.has(txt))el.textContent='Target';
+        const next=replacements.get(txt);
+        if(next)el.textContent=next;
       }
     }
     function scheduleMonthlyOverviewLabels(){
@@ -109,6 +121,201 @@
     document.querySelector('.tab[data-tab="overview"]')?.addEventListener('click',()=>setTimeout(scheduleMonthlyOverviewLabels,60));
     setTimeout(scheduleMonthlyOverviewLabels,200);
     setTimeout(scheduleMonthlyOverviewLabels,900);
+
+    // Compact, collapsible Brand Performance below the sales KPIs.
+    const brandPerfStyle=document.createElement('style');
+    brandPerfStyle.textContent=`
+      .brandPerf{border-top:1px solid #edf0f2;background:#fbfcfd}
+      .brandPerfHead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 13px;cursor:pointer;user-select:none}
+      .brandPerfTitle{display:flex;align-items:baseline;gap:8px;min-width:0}
+      .brandPerfTitle b{font-size:11px;text-transform:uppercase;letter-spacing:.045em}
+      .brandPerfTitle span{font-size:9px;color:#7b8189;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .brandPerfToggle{border:1px solid #d9dde2;background:#fff;border-radius:6px;padding:3px 8px;font-size:9px;font-weight:800;color:#4f555d;cursor:pointer}
+      .brandPerfBody{padding:0 13px 10px}
+      .brandPerf.collapsed .brandPerfBody{display:none}
+      .brandPerfRows{display:grid;gap:5px}
+      .brandPerfRow{display:grid;grid-template-columns:minmax(105px,150px) minmax(160px,1fr) 112px 58px;gap:10px;align-items:center;min-height:24px}
+      .brandPerfName{font-size:10.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .brandPerfTrack{height:8px;background:#e8ebee;border-radius:99px;overflow:hidden;display:flex}
+      .brandPerfSales{height:100%;background:var(--red)}
+      .collisionBlock .brandPerfSales{background:var(--blue)}
+      .brandPerfBacklog{height:100%;background:#9ca3ab}
+      .brandPerfValue{text-align:right;font-size:10px;font-weight:800;font-variant-numeric:tabular-nums}
+      .brandPerfPct{text-align:right;font-size:9.5px;font-weight:850;color:#69717a;font-variant-numeric:tabular-nums}
+      .brandPerfLegend{display:flex;justify-content:flex-end;gap:12px;padding-top:6px;font-size:8.5px;color:#7b8189}
+      .brandPerfLegend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+      .brandPerfLegend .sales i{background:var(--red)}
+      .collisionBlock .brandPerfLegend .sales i{background:var(--blue)}
+      .brandPerfLegend .backlog i{background:#9ca3ab}
+      .brandPerfEmpty{font-size:10px;color:#7b8189;padding:4px 0}
+      #overview .brandMini{display:none!important}
+      @media(max-width:700px){.brandPerfRow{grid-template-columns:90px 1fr 85px}.brandPerfPct{display:none}.brandPerfTitle span{display:none}}
+    `;
+    document.head.appendChild(brandPerfStyle);
+
+    const eurBrand=new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0});
+    const usdBrand=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
+    const brandPct=new Intl.NumberFormat('de-DE',{style:'percent',maximumFractionDigits:1});
+    let undercarBrandFile=null;
+    let undercarBrandKey='';
+    let undercarBrandRows=[];
+    let undercarBrandLoading=false;
+
+    function brandStateKey(kind){return 'sales-dashboard-brand-performance-'+kind;}
+    function brandCollapsed(kind){try{return localStorage.getItem(brandStateKey(kind))!=='open';}catch{return true;}}
+    function saveBrandCollapsed(kind,collapsed){try{localStorage.setItem(brandStateKey(kind),collapsed?'closed':'open');}catch{}}
+
+    function createBrandPanel(kind,anchor,subtitle){
+      if(!anchor)return null;
+      let panel=document.getElementById(kind+'BrandPerformance');
+      if(panel)return panel;
+      panel=document.createElement('section');
+      panel.id=kind+'BrandPerformance';
+      panel.className='brandPerf'+(brandCollapsed(kind)?' collapsed':'');
+      panel.innerHTML=`<div class="brandPerfHead"><div class="brandPerfTitle"><b>Brand Performance</b><span>${subtitle}</span></div><button type="button" class="brandPerfToggle">${brandCollapsed(kind)?'Show':'Hide'}</button></div><div class="brandPerfBody"><div class="brandPerfEmpty">${kind==='undercar'?'Open to load brand data.':'Load Collision data to show brands.'}</div></div>`;
+      anchor.insertAdjacentElement('afterend',panel);
+      const toggle=()=>{
+        const collapsed=panel.classList.toggle('collapsed');
+        panel.querySelector('.brandPerfToggle').textContent=collapsed?'Show':'Hide';
+        saveBrandCollapsed(kind,collapsed);
+        if(!collapsed){
+          if(kind==='undercar')ensureUndercarBrandData();
+          else renderCollisionBrandPerformance();
+        }
+      };
+      panel.querySelector('.brandPerfHead')?.addEventListener('click',e=>{if(e.target.closest('.brandPerfToggle'))return;toggle();});
+      panel.querySelector('.brandPerfToggle')?.addEventListener('click',toggle);
+      return panel;
+    }
+
+    function ensureBrandPanels(){
+      const u=createBrandPanel('undercar',document.getElementById('undercarOverview'),'Sales MTD + Backlog Ord1 · forecast share');
+      const c=createBrandPanel('collision',document.getElementById('collisionOverview'),'Sales MTD + Backlog Ord1 · target attainment');
+      if(u&&!u.classList.contains('collapsed'))ensureUndercarBrandData();
+      if(c&&!c.classList.contains('collapsed'))renderCollisionBrandPerformance();
+    }
+
+    function renderBrandRows(kind,rows,fmt,mode='share'){
+      const panel=document.getElementById(kind+'BrandPerformance');
+      const body=panel?.querySelector('.brandPerfBody');
+      if(!body)return;
+      if(!rows?.length){body.innerHTML='<div class="brandPerfEmpty">No brand data available for the current month.</div>';return;}
+      const maxForecast=Math.max(...rows.map(r=>Math.max(0,r.forecast)),1);
+      const totalForecast=rows.reduce((s,r)=>s+Math.max(0,r.forecast),0)||1;
+      body.innerHTML=`<div class="brandPerfRows">${rows.map(r=>{
+        const sales=Math.max(0,r.sales||0),backlog=Math.max(0,r.backlog||0),forecast=Math.max(0,r.forecast||0);
+        const overall=Math.min(100,forecast/maxForecast*100);
+        const salesW=forecast?overall*(sales/forecast):0;
+        const backlogW=forecast?overall*(backlog/forecast):0;
+        const pct=mode==='target'?(r.target?forecast/r.target:null):forecast/totalForecast;
+        const pctText=pct==null?'—':brandPct.format(pct);
+        const pctClass=mode==='target'&&pct>=1?'good':(mode==='target'?'bad':'');
+        return `<div class="brandPerfRow"><div class="brandPerfName" title="${String(r.name).replace(/"/g,'&quot;')}">${r.name}</div><div class="brandPerfTrack"><div class="brandPerfSales" style="width:${salesW}%"></div><div class="brandPerfBacklog" style="width:${backlogW}%"></div></div><div class="brandPerfValue">${fmt.format(r.forecast)}</div><div class="brandPerfPct ${pctClass}">${pctText}</div></div>`;
+      }).join('')}</div><div class="brandPerfLegend"><span class="sales"><i></i>Sales MTD</span><span class="backlog"><i></i>Backlog Ord1</span></div>`;
+    }
+
+    function compactTopBrands(rows,limit=5){
+      const list=[...rows].filter(r=>r.forecast!==0||r.sales!==0||r.backlog!==0).sort((a,b)=>b.forecast-a.forecast);
+      if(list.length<=limit)return list;
+      const top=list.slice(0,limit-1),rest=list.slice(limit-1);
+      top.push({name:'Other',sales:rest.reduce((s,r)=>s+r.sales,0),backlog:rest.reduce((s,r)=>s+r.backlog,0),forecast:rest.reduce((s,r)=>s+r.forecast,0),target:rest.reduce((s,r)=>s+(r.target||0),0)});
+      return top;
+    }
+
+    function parseUndercarBrandRows(parsed){
+      const rows=parsed?.rows||[];
+      const managers=new Set(['Bernardi F','Zilkowski S.','Mindaugas Deikus','Sollano R.','Sollano R']);
+      const scope=rows.filter(r=>String(r.salesOffice||'').trim()==='Zilkowski S.'&&managers.has(String(r.salesManager||'').trim()));
+      let currentYM='';
+      for(const r of scope){
+        const t=String(r.type||'').trim().toLowerCase();
+        const d=String(r.date||'');
+        if(t.startsWith('inv')&&/^\d{4}-\d{2}/.test(d)){const ym=d.slice(0,7);if(ym>currentYM)currentYM=ym;}
+      }
+      const map=new Map();
+      const add=(brand,key,value)=>{
+        const name=String(brand||'').trim()||'Other';
+        if(!map.has(name))map.set(name,{name,sales:0,backlog:0,forecast:0});
+        map.get(name)[key]+=Number(value)||0;
+      };
+      for(const r of scope){
+        const type=String(r.type||'').trim().toLowerCase();
+        const date=String(r.date||'');
+        if(type.startsWith('inv')){
+          if(currentYM&&date.slice(0,7)!==currentYM)continue;
+          add(r.brand,'sales',r.sales);
+        }else if(type==='ord1'){
+          add(r.brand,'backlog',r.sales);
+        }
+      }
+      for(const x of map.values())x.forecast=x.sales+x.backlog;
+      return compactTopBrands([...map.values()]);
+    }
+
+    function idle(fn){if('requestIdleCallback'in window)requestIdleCallback(fn,{timeout:1200});else setTimeout(fn,80);}
+    function ensureUndercarBrandData(){
+      const panel=document.getElementById('undercarBrandPerformance');
+      if(!panel||panel.classList.contains('collapsed')||undercarBrandLoading)return;
+      const file=undercarBrandFile||document.getElementById('file')?.files?.[0];
+      if(!file){panel.querySelector('.brandPerfBody').innerHTML='<div class="brandPerfEmpty">Load the Undercar file to show Brand Performance.</div>';return;}
+      const key=[file.name,file.size,file.lastModified].join('|');
+      if(key===undercarBrandKey&&undercarBrandRows.length){renderBrandRows('undercar',undercarBrandRows,eurBrand,'share');return;}
+      undercarBrandLoading=true;
+      panel.querySelector('.brandPerfBody').innerHTML='<div class="brandPerfEmpty">Loading brand data…</div>';
+      idle(async()=>{
+        try{
+          const buf=await file.arrayBuffer();
+          const parsed=globalThis.XLSBIFF8?.parseSalesJournal?.(buf);
+          undercarBrandRows=parseUndercarBrandRows(parsed);
+          undercarBrandKey=key;
+          renderBrandRows('undercar',undercarBrandRows,eurBrand,'share');
+        }catch(e){
+          console.warn('Undercar Brand Performance could not be loaded',e);
+          panel.querySelector('.brandPerfBody').innerHTML='<div class="brandPerfEmpty">Brand data could not be loaded from this file.</div>';
+        }finally{undercarBrandLoading=false;}
+      });
+    }
+
+    const domNumber=text=>{const s=String(text||'').replace(/\s/g,'').replace(/\$/g,'').replace(/€/g,'').replace(/,/g,'').replace(/[^0-9+\-.]/g,'');const v=Number(s);return Number.isFinite(v)?v:0;};
+    function renderCollisionBrandPerformance(){
+      const panel=document.getElementById('collisionBrandPerformance');
+      if(!panel||panel.classList.contains('collapsed'))return;
+      const body=document.getElementById('collisionBrandBody');
+      const table=body?.closest('table');
+      if(!body||!table){panel.querySelector('.brandPerfBody').innerHTML='<div class="brandPerfEmpty">Load the Collision file to show Brand Performance.</div>';return;}
+      const headers=[...table.querySelectorAll('thead tr:last-child th')].map(th=>(th.textContent||'').trim().toLowerCase());
+      const idx=(...names)=>{for(const name of names){const i=headers.findIndex(h=>h===name||h.includes(name));if(i>=0)return i;}return-1;};
+      const iSales=idx('sales mtd','actual');
+      const iBacklog=idx('backlog ord1','orders','ord0 + ord1');
+      const iOrd0=idx('ord0');
+      const iOrd1=idx('ord1');
+      const iForecast=idx('forecast');
+      const iTarget=idx('target','aop');
+      const rows=[];
+      for(const tr of [...body.rows]){
+        const name=(tr.cells?.[0]?.textContent||'').trim();
+        if(!name||/total/i.test(name)||tr.classList.contains('brandInactive')||getComputedStyle(tr).display==='none')continue;
+        const sales=iSales>=0?domNumber(tr.cells[iSales]?.textContent):0;
+        let backlog=iBacklog>=0?domNumber(tr.cells[iBacklog]?.textContent):0;
+        if(iBacklog<0)backlog=(iOrd0>=0?domNumber(tr.cells[iOrd0]?.textContent):0)+(iOrd1>=0?domNumber(tr.cells[iOrd1]?.textContent):0);
+        const forecast=iForecast>=0?domNumber(tr.cells[iForecast]?.textContent):sales+backlog;
+        const target=iTarget>=0?domNumber(tr.cells[iTarget]?.textContent):0;
+        rows.push({name,sales,backlog,forecast,target});
+      }
+      renderBrandRows('collision',compactTopBrands(rows,5),usdBrand,'target');
+    }
+
+    ensureBrandPanels();
+    setTimeout(ensureBrandPanels,700);
+    document.querySelector('.tab[data-tab="overview"]')?.addEventListener('click',()=>setTimeout(()=>{ensureBrandPanels();renderCollisionBrandPerformance();},100));
+    document.getElementById('file')?.addEventListener('change',e=>{
+      const f=e.target.files?.[0];if(!f)return;
+      undercarBrandFile=f;undercarBrandKey='';undercarBrandRows=[];
+      const p=document.getElementById('undercarBrandPerformance');
+      if(p&&!p.classList.contains('collapsed'))ensureUndercarBrandData();
+    });
+    const collisionBrandBody=document.getElementById('collisionBrandBody');
+    if(collisionBrandBody)new MutationObserver(()=>requestAnimationFrame(renderCollisionBrandPerformance)).observe(collisionBrandBody,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style']});
 
     const rule=document.querySelector('#collisionDetail .collisionRule');
     if(rule)rule.textContent=rule.textContent.replace('Ruslan = Bulgaria + Export','Ruslan = Bulgaria + Export (excl. Japan)');
