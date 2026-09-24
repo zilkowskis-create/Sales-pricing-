@@ -25,7 +25,7 @@
         <div class="execKpi"><span>Order Entered</span><b>${euro.format(undercar.oe)}</b></div>
         <div class="execKpi"><span>Backlog Ord1</span><b>${euro.format(undercar.o1)}</b></div>
         <div class="execKpi emphasis"><span>Forecast</span><b>${euro.format(undercar.forecast)}</b></div>
-        <div class="execKpi"><span>Monthly Target</span><b>${euro.format(undercar.plan)}</b></div>
+        <div class="execKpi"><span>Target</span><b>${euro.format(undercar.plan)}</b></div>
         <div class="execKpi"><span>Gap vs Target</span><b class="${good(undercar.gap)}">${signed(euro,undercar.gap)}</b></div>
         <div class="execKpi"><span>Target %</span><b class="${attain!=null&&attain>=1?'good':'bad'}">${attain==null?'—':pctFmt.format(attain)}</b></div>`;
     }
@@ -89,18 +89,49 @@
     }
     function addMetric(a,b){const x={};for(const k of ['target','actual','o0','o1','forecast','gap'])x[k]=n(a[k])+n(b[k]);x.attain=x.target?x.forecast/x.target:null;return x;}
     function collisionRow(label,x,total=false){return `<tr class="${total?'brandTotal':''}"><td><b>${label}</b></td><td class="num">${usd.format(x.target)}</td><td class="num">${usd.format(x.actual)}</td><td class="num">${usd.format(x.o0)}</td><td class="num">${usd.format(x.o1)}</td><td class="num"><b>${usd.format(x.forecast)}</b></td><td class="num ${good(x.gap)}"><b>${signed(usd,x.gap)}</b></td><td class="num ${x.attain!=null&&x.attain>=1?'good':'bad'}"><b>${x.attain==null?'—':pctFmt.format(x.attain)}</b></td></tr>`;}
+
+    function normalizeOverviewLabels(){
+      const overview=document.getElementById('overview');if(!overview)return;
+      const replacements=new Map([
+        ['actual','Sales MTD'],
+        ['orders','Backlog Ord1'],
+        ['ord0 + ord1','Backlog Ord1'],
+        ['monthly aop','Target'],
+        ['month aop','Target'],
+        ['monthly target','Target'],
+        ['month target','Target'],
+        ['aop','Target'],
+        ['gap vs aop','Gap vs Target'],
+        ['gap','Gap vs Target'],
+        ['aop %','Target %']
+      ]);
+      for(const el of overview.querySelectorAll('.execKpi span,.brandMini th')){
+        const key=norm(el.textContent);
+        const next=replacements.get(key);
+        if(next&&el.textContent!==next)el.textContent=next;
+      }
+    }
+    let labelSyncPending=false;
+    function scheduleOverviewLabels(){
+      if(labelSyncPending)return;labelSyncPending=true;
+      requestAnimationFrame(()=>{labelSyncPending=false;normalizeOverviewLabels();});
+    }
+    const overviewPane=document.getElementById('overview');
+    if(overviewPane)new MutationObserver(scheduleOverviewLabels).observe(overviewPane,{childList:true,subtree:true,characterData:true});
+
     function renderCollision(){
       const total=collisionMetric(collisionRows),box=document.getElementById('collisionOverview');
+      const backlog=total.o0+total.o1;
       if(box)box.innerHTML=`
-        <div class="execKpi"><span>Actual</span><b>${usd.format(total.actual)}</b></div>
-        <div class="execKpi"><span>Ord0</span><b>${usd.format(total.o0)}</b></div>
-        <div class="execKpi"><span>Ord1</span><b>${usd.format(total.o1)}</b></div>
+        <div class="execKpi"><span>Sales MTD</span><b>${usd.format(total.actual)}</b></div>
+        <div class="execKpi"><span>Backlog Ord1</span><b>${usd.format(backlog)}</b></div>
         <div class="execKpi emphasis"><span>Forecast</span><b>${usd.format(total.forecast)}</b></div>
-        <div class="execKpi"><span>Monthly AOP</span><b>${usd.format(total.target)}</b></div>
-        <div class="execKpi"><span>Gap vs AOP</span><b class="${good(total.gap)}">${signed(usd,total.gap)}</b></div>
-        <div class="execKpi"><span>AOP %</span><b class="${total.attain!=null&&total.attain>=1?'good':'bad'}">${total.attain==null?'—':pctFmt.format(total.attain)}</b></div>`;
+        <div class="execKpi"><span>Target</span><b>${usd.format(total.target)}</b></div>
+        <div class="execKpi"><span>Gap vs Target</span><b class="${good(total.gap)}">${signed(usd,total.gap)}</b></div>
+        <div class="execKpi"><span>Target %</span><b class="${total.attain!=null&&total.attain>=1?'good':'bad'}">${total.attain==null?'—':pctFmt.format(total.attain)}</b></div>`;
       const body=document.getElementById('collisionBrandBody');if(body){const bm={};for(const b of BRAND_ORDER)bm[b]=collisionMetric(collisionRows.filter(r=>r.brand===b));body.innerHTML=collisionRow('JOSAM',bm['Josam'])+collisionRow('Car-O-Liner',bm['Car-O-Liner'])+collisionRow('BlackHawk',bm['BlackHawk'])+collisionRow('COL + BlackHawk TOTAL',addMetric(bm['Car-O-Liner'],bm['BlackHawk']),true);}
       const p=document.getElementById('collisionPeriod');if(p&&collisionPeriod.year)p.textContent=['','January','February','March','April','May','June','July','August','September','October','November','December'][collisionPeriod.month]+' '+collisionPeriod.year;
+      scheduleOverviewLabels();
     }
     async function loadCollision(file){
       const s=document.getElementById('overviewCollisionSource');
@@ -118,7 +149,7 @@
     document.getElementById('collisionLoad')?.addEventListener('click',()=>document.getElementById('collisionFile')?.click());
     document.getElementById('collisionFile')?.addEventListener('change',e=>{const f=e.target.files?.[0];if(f)loadCollision(f);e.target.value='';});
 
-    renderUndercar();renderCollision();loadUndercarSnapshot();
+    renderUndercar();renderCollision();loadUndercarSnapshot();scheduleOverviewLabels();
   }catch(e){
     console.error(e);
     if(status) status.textContent='App load error: '+(e?.message||String(e));
