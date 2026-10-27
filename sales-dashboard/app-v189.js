@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.30';
+  const UI_VERSION='2026.09.17.31';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -81,7 +81,7 @@
   }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026091730&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026102731&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
@@ -431,6 +431,144 @@
     document.getElementById('collisionManagerDetail')?.addEventListener('change',()=>setTimeout(syncCollisionUi,120));
     document.getElementById('collisionFile')?.addEventListener('change',()=>{setTimeout(syncCollisionUi,500);setTimeout(syncCollisionUi,1500);setTimeout(syncCollisionUi,3000);});
     setTimeout(syncCollisionUi,350);setTimeout(syncCollisionUi,1200);
+
+    // Monthly Overview: combined TOTAL in EUR. Collision USD values are converted with the latest ECB-based rate.
+    const totalEurFmt=new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0});
+    const totalPctFmt=new Intl.NumberFormat('de-DE',{style:'percent',maximumFractionDigits:1});
+    const FX_FALLBACK_USD_EUR=1/1.1188; // ECB reference 2026-10-26: EUR 1 = USD 1.1188
+    let usdToEurRate=FX_FALLBACK_USD_EUR;
+    let usdToEurDate='2026-10-26';
+    let totalRenderPending=false;
+
+    function parseOverviewMoney(text,currency){
+      let s=String(text||'').trim();
+      if(!s||s==='—'||s==='-')return null;
+      s=s.replace(/[^0-9+\-.,]/g,'');
+      if(!s)return null;
+      if(currency==='EUR'){
+        if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+        else if(s.includes(','))s=s.replace(',','.');
+        else if(s.includes('.')){
+          const p=s.split('.');
+          if(p.length>1&&p.slice(1).every(x=>x.length===3))s=p.join('');
+        }
+      }else{
+        if(s.includes(',')&&s.includes('.'))s=s.replace(/,/g,'');
+        else if(s.includes(',')){
+          const p=s.split(',');
+          if(p.length>1&&p.slice(1).every(x=>x.length===3))s=p.join('');
+          else s=s.replace(',','.');
+        }
+      }
+      const n=Number(s);return Number.isFinite(n)?n:null;
+    }
+
+    function overviewMetrics(id,currency){
+      const box=document.getElementById(id);
+      if(!box)return null;
+      const out={};
+      for(const kpi of box.querySelectorAll('.execKpi')){
+        const label=(kpi.querySelector('span')?.textContent||'').trim().toLowerCase();
+        const value=parseOverviewMoney(kpi.querySelector('b')?.textContent,currency);
+        if(label==='sales mtd'||label==='actual')out.sales=value;
+        else if(label==='backlog ord1'||label==='orders'||label==='ord0 + ord1')out.backlog=value;
+        else if(label==='forecast')out.forecast=value;
+        else if(label==='target'||label==='monthly target'||label==='month target'||label==='aop'||label==='month aop')out.target=value;
+      }
+      return out;
+    }
+
+    function totalKpi(label,value,extraClass=''){
+      return `<div class="execKpi ${extraClass}"><span>${label}</span><b>${value==null?'—':totalEurFmt.format(value)}</b></div>`;
+    }
+
+    function ensureTotalOverviewCard(){
+      const overview=document.getElementById('overview');
+      const collisionOverview=document.getElementById('collisionOverview');
+      const collisionCard=collisionOverview?.closest('.businessCard');
+      if(!overview||!collisionCard)return null;
+      let card=document.getElementById('combinedTotalOverview');
+      if(card)return card;
+      card=document.createElement('section');
+      card.id='combinedTotalOverview';
+      card.className='businessCard totalOverviewBlock';
+      card.innerHTML=`<div class="businessHead"><div><h3>TOTAL SALES</h3><span id="totalFxNote" class="period">Collision converted to EUR</span></div><span class="currency">EUR €</span></div><div id="combinedTotalGrid" class="execGrid"></div>`;
+      collisionCard.insertAdjacentElement('afterend',card);
+      return card;
+    }
+
+    function renderTotalOverview(){
+      const card=ensureTotalOverviewCard();
+      const grid=document.getElementById('combinedTotalGrid');
+      if(!card||!grid)return;
+      const u=overviewMetrics('undercarOverview','EUR');
+      const c=overviewMetrics('collisionOverview','USD');
+      if(!u||!c)return;
+      const cv=x=>x==null?null:x*usdToEurRate;
+      const sum=(a,b)=>a==null||b==null?null:a+b;
+      const sales=sum(u.sales,cv(c.sales));
+      const backlog=sum(u.backlog,cv(c.backlog));
+      const forecast=sum(u.forecast,cv(c.forecast));
+      const target=sum(u.target,cv(c.target));
+      const gap=forecast!=null&&target!=null?forecast-target:null;
+      const attain=forecast!=null&&target?forecast/target:null;
+      grid.innerHTML=
+        totalKpi('Sales MTD',sales)+
+        totalKpi('Backlog Ord1',backlog)+
+        totalKpi('Forecast',forecast,'emphasis')+
+        totalKpi('Target',target)+
+        totalKpi('Gap vs Target',gap)+
+        `<div class="execKpi"><span>Target %</span><b>${attain==null?'—':totalPctFmt.format(attain)}</b></div>`;
+      const note=document.getElementById('totalFxNote');
+      if(note)note.textContent=`Collision USD → EUR · 1 USD = ${usdToEurRate.toFixed(4)} EUR · ${usdToEurDate}`;
+    }
+
+    function scheduleTotalOverview(){
+      if(totalRenderPending)return;
+      totalRenderPending=true;
+      requestAnimationFrame(()=>{totalRenderPending=false;renderTotalOverview();});
+    }
+
+    const totalStyle=document.createElement('style');
+    totalStyle.textContent=`
+      #combinedTotalOverview{border:2px solid #17191d;margin-top:12px}
+      #combinedTotalOverview .businessHead{background:#17191d;color:#fff}
+      #combinedTotalOverview .businessHead .period,#combinedTotalOverview .businessHead .currency{color:#c9cdd3}
+      #combinedTotalOverview .execGrid{grid-template-columns:repeat(6,1fr)}
+      #combinedTotalOverview .execKpi.emphasis{border-top-color:#17191d;background:#f2f3f4}
+      @media(max-width:850px){#combinedTotalOverview .execGrid{grid-template-columns:repeat(3,1fr)}}
+      @media(max-width:520px){#combinedTotalOverview .execGrid{grid-template-columns:repeat(2,1fr)}}
+    `;
+    document.head.appendChild(totalStyle);
+
+    async function refreshUsdEurRate(){
+      try{
+        const r=await realFetch('https://api.frankfurter.app/latest?from=USD&to=EUR',{cache:'no-store'});
+        if(!r.ok)throw new Error('FX response '+r.status);
+        const j=await r.json();
+        const rate=Number(j?.rates?.EUR);
+        if(!Number.isFinite(rate)||rate<=0)throw new Error('Invalid FX rate');
+        usdToEurRate=rate;
+        usdToEurDate=String(j.date||'latest');
+        try{localStorage.setItem('sales-dashboard-usd-eur',JSON.stringify({rate,date:usdToEurDate}));}catch{}
+      }catch(e){
+        try{
+          const saved=JSON.parse(localStorage.getItem('sales-dashboard-usd-eur')||'null');
+          if(Number.isFinite(Number(saved?.rate))&&Number(saved.rate)>0){usdToEurRate=Number(saved.rate);usdToEurDate=String(saved.date||'saved');}
+        }catch{}
+        console.warn('USD/EUR rate fallback in use',e);
+      }
+      scheduleTotalOverview();
+    }
+
+    ensureTotalOverviewCard();
+    if(overviewPane)new MutationObserver(scheduleTotalOverview).observe(overviewPane,{childList:true,subtree:true,characterData:true});
+    document.querySelector('.tab[data-tab="overview"]')?.addEventListener('click',()=>setTimeout(scheduleTotalOverview,100));
+    document.getElementById('file')?.addEventListener('change',()=>{setTimeout(scheduleTotalOverview,500);setTimeout(scheduleTotalOverview,1600);});
+    document.getElementById('collisionFile')?.addEventListener('change',()=>{setTimeout(scheduleTotalOverview,700);setTimeout(scheduleTotalOverview,1800);setTimeout(scheduleTotalOverview,3200);});
+    setTimeout(scheduleTotalOverview,350);
+    setTimeout(scheduleTotalOverview,1300);
+    refreshUsdEurRate();
 
     const undercar=document.getElementById('file');
     const collision=document.getElementById('collisionFile');
