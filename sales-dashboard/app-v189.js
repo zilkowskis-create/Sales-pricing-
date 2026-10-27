@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.31';
+  const UI_VERSION='2026.09.17.32';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -81,7 +81,7 @@
   }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026102731&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026102732&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
@@ -468,13 +468,14 @@
       if(!box)return null;
       const out={};
       for(const kpi of box.querySelectorAll('.execKpi')){
-        const label=(kpi.querySelector('span')?.textContent||'').trim().toLowerCase();
-        const value=parseOverviewMoney(kpi.querySelector('b')?.textContent,currency);
+        const label=((kpi.querySelector('span,.label,.goalTitle')?.textContent)||'').trim().toLowerCase();
+        const value=parseOverviewMoney((kpi.querySelector('b,.value,.goalMain span')?.textContent)||'',currency);
         if(label==='sales mtd'||label==='actual')out.sales=value;
-        else if(label==='backlog ord1'||label==='orders'||label==='ord0 + ord1')out.backlog=value;
-        else if(label==='forecast')out.forecast=value;
+        else if(label==='backlog ord1'||label==='orders'||label==='ord0 + ord1'||label.includes('backlog ord1'))out.backlog=value;
+        else if(label==='forecast'||label.includes('forecast'))out.forecast=value;
         else if(label==='target'||label==='monthly target'||label==='month target'||label==='aop'||label==='month aop')out.target=value;
       }
+      if(out.backlog==null&&out.forecast!=null&&out.sales!=null)out.backlog=out.forecast-out.sales;
       return out;
     }
 
@@ -484,16 +485,16 @@
 
     function ensureTotalOverviewCard(){
       const overview=document.getElementById('overview');
-      const collisionOverview=document.getElementById('collisionOverview');
-      const collisionCard=collisionOverview?.closest('.businessCard');
-      if(!overview||!collisionCard)return null;
+      const undercarOverview=document.getElementById('undercarOverview');
+      const undercarCard=undercarOverview?.closest('.businessCard');
+      if(!overview||!undercarCard)return null;
       let card=document.getElementById('combinedTotalOverview');
       if(card)return card;
       card=document.createElement('section');
       card.id='combinedTotalOverview';
       card.className='businessCard totalOverviewBlock';
       card.innerHTML=`<div class="businessHead"><div><h3>TOTAL SALES</h3><span id="totalFxNote" class="period">Collision converted to EUR</span></div><span class="currency">EUR €</span></div><div id="combinedTotalGrid" class="execGrid"></div>`;
-      collisionCard.insertAdjacentElement('afterend',card);
+      undercarCard.insertAdjacentElement('beforebegin',card);
       return card;
     }
 
@@ -531,7 +532,7 @@
 
     const totalStyle=document.createElement('style');
     totalStyle.textContent=`
-      #combinedTotalOverview{border:2px solid #17191d;margin-top:12px}
+      #combinedTotalOverview{border:2px solid #17191d;margin:0 0 12px}
       #combinedTotalOverview .businessHead{background:#17191d;color:#fff}
       #combinedTotalOverview .businessHead .period,#combinedTotalOverview .businessHead .currency{color:#c9cdd3}
       #combinedTotalOverview .execGrid{grid-template-columns:repeat(6,1fr)}
