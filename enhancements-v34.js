@@ -1,8 +1,6 @@
 (() => {
   'use strict';
 
-  const VERSION_LABEL = 'V34 · Stable Excel quotation';
-
   function normalizeEnglishLabels(workbook) {
     if (!workbook || !workbook.SheetNames || !workbook.Sheets) return;
     for (const sheetName of workbook.SheetNames) {
@@ -48,25 +46,9 @@
     });
   }
 
-  function lockVersionBadge() {
-    const badge = document.querySelector('.badge');
-    if (!badge) return;
-    if (badge.textContent !== VERSION_LABEL) badge.textContent = VERSION_LABEL;
-    if (!badge.dataset.v34Locked) {
-      badge.dataset.v34Locked = '1';
-      new MutationObserver(() => {
-        if (badge.textContent !== VERSION_LABEL) badge.textContent = VERSION_LABEL;
-      }).observe(badge, { childList: true, characterData: true, subtree: true });
-    }
-  }
-
   function install() {
     installExcelExport();
     disableImageExport();
-    lockVersionBadge();
-    setTimeout(lockVersionBadge, 0);
-    setTimeout(lockVersionBadge, 100);
-    setTimeout(lockVersionBadge, 500);
     setTimeout(disableImageExport, 100);
     setTimeout(disableImageExport, 500);
   }
