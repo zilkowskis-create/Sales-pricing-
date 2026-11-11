@@ -225,11 +225,29 @@
     XLSX.writeFile(result.wb, `Quotation${customerPart}${quotationPart}.xlsx`);
   }
 
+  function lockCurrentVersionBadge() {
+    const current = document.querySelector('.badge');
+    if (!current) return;
+    const badge = current.cloneNode(true);
+    badge.textContent = 'V36 · Snap-on quotation design';
+    badge.removeAttribute('data-v34-locked');
+    current.replaceWith(badge);
+    new MutationObserver(() => {
+      if (badge.textContent !== 'V36 · Snap-on quotation design') {
+        badge.textContent = 'V36 · Snap-on quotation design';
+      }
+    }).observe(badge, { childList: true, characterData: true, subtree: true });
+  }
+
   function install() {
+    lockCurrentVersionBadge();
     const btn = document.getElementById('exportBtn');
-    if (!btn || btn.dataset.v36QuotationDesign === '1') return;
-    btn.dataset.v36QuotationDesign = '1';
-    btn.addEventListener('click', exportSnapOnQuotation, true);
+    if (btn && btn.dataset.v36QuotationDesign !== '1') {
+      btn.dataset.v36QuotationDesign = '1';
+      btn.addEventListener('click', exportSnapOnQuotation, true);
+    }
+    setTimeout(lockCurrentVersionBadge, 50);
+    setTimeout(lockCurrentVersionBadge, 300);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
