@@ -130,7 +130,12 @@
       XLSX.utils.decode_range(`A2:${lastSheetCol}2`),
       XLSX.utils.decode_range(`A4:${lastSheetCol}4`)
     ];
-    ws['!cols'] = Array.from({ length: sheetColCount }, (_, i) => ({ wch: fields[i]?.width || 16 }));
+    ws['!cols'] = Array.from({ length: sheetColCount }, (_, i) => {
+      let width = fields[i]?.width || 16;
+      if (i === 0) width = Math.max(width, 16);
+      if (i === 1) width = Math.max(width, 24);
+      return { wch: width };
+    });
     ws['!rows'] = [];
     ws['!rows'][0] = { hpt: 30 };
     ws['!rows'][1] = { hpt: 23 };
