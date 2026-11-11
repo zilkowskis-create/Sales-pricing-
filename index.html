@@ -25,7 +25,7 @@
 <body>
   <header class="topbar">
     <div><h1>Sales Pricing</h1><p>Quotation & Pricing Tool</p></div>
-    <div class="badge">V35 · Price list regions</div>
+    <div class="badge">V36 · Snap-on quotation design</div>
   </header>
   <div id="updateBanner" class="update-banner" role="status" aria-live="polite"><span id="updateMessage">A new version is available.</span><button id="updateReloadBtn" type="button">Load update</button></div>
 
@@ -71,15 +71,15 @@
   <script src="enhancements-v31.js?v=34.1"></script>
   <script src="enhancements-v32.js?v=32"></script>
   <script src="enhancements-v34.js?v=34.4"></script>
-  <script src="enhancements-v35.js?v=35"></script>
+  <script src="enhancements-v35.js?v=35"></script>\n  <script src="enhancements-v36.js?v=36"></script>
   <script>
     (()=>{
-      const CURRENT_VERSION=35;
+      const CURRENT_VERSION=36;
       const banner=document.getElementById('updateBanner');
       const message=document.getElementById('updateMessage');
       const reloadBtn=document.getElementById('updateReloadBtn');
       let latestVersion=CURRENT_VERSION;
-      const setCurrentBadge=()=>{const badge=document.querySelector('.badge');if(badge)badge.textContent='V35 · Price list regions';};
+      const setCurrentBadge=()=>{const badge=document.querySelector('.badge');if(badge)badge.textContent='V36 · Snap-on quotation design';};
       setCurrentBadge();
       if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(setCurrentBadge,0));else setTimeout(setCurrentBadge,0);
       async function checkForUpdate(){
