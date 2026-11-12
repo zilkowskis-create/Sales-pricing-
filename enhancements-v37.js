@@ -316,7 +316,176 @@
     return { wb, customer, quotationNo };
   }
 
-  function exportSnapOnQuotation(event) {
+  const ARCHIVE_DB_NAME = 'salesPricingQuotationArchiveDB';
+  const ARCHIVE_STORE = 'quotations';
+
+  function openArchiveDb() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(ARCHIVE_DB_NAME, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(ARCHIVE_STORE)) {
+          db.createObjectStore(ARCHIVE_STORE, { keyPath: 'id' });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function saveArchiveRecord(record) {
+    const db = await openArchiveDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(ARCHIVE_STORE, 'readwrite');
+      tx.objectStore(ARCHIVE_STORE).put(record);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  }
+
+  async function getArchiveRecords() {
+    const db = await openArchiveDb();
+    const records = await new Promise((resolve, reject) => {
+      const tx = db.transaction(ARCHIVE_STORE, 'readonly');
+      const req = tx.objectStore(ARCHIVE_STORE).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return records.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  }
+
+  async function getArchiveRecord(id) {
+    const db = await openArchiveDb();
+    const record = await new Promise((resolve, reject) => {
+      const tx = db.transaction(ARCHIVE_STORE, 'readonly');
+      const req = tx.objectStore(ARCHIVE_STORE).get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return record;
+  }
+
+  async function deleteArchiveRecord(id) {
+    const db = await openArchiveDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(ARCHIVE_STORE, 'readwrite');
+      tx.objectStore(ARCHIVE_STORE).delete(id);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  }
+
+  function triggerBlobDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  function archiveTotal() {
+    return state.offer.reduce((sum, item) => {
+      const quoteUnit = Number(item.netPrice || 0) * (1 - Number(item.extraDiscount || 0) / 100);
+      return sum + quoteUnit * Number(item.qty || 1);
+    }, 0);
+  }
+
+  function ensureArchiveUi() {
+    if (document.getElementById('quotationArchiveCard')) return;
+    const offerCard = document.getElementById('offerCard');
+    if (!offerCard) return;
+
+    const card = document.createElement('section');
+    card.id = 'quotationArchiveCard';
+    card.className = 'card quotation-archive-card';
+    card.innerHTML = `
+      <div class="section-head">
+        <div>
+          <h2>Quotation archive</h2>
+          <p class="muted">Every exported quotation is saved automatically in this browser.</p>
+        </div>
+        <span id="quotationArchiveCount" class="count-pill">0 quotations</span>
+      </div>
+      <div class="quotation-archive-wrap">
+        <table class="quotation-archive-table">
+          <thead><tr><th>Date</th><th>Customer</th><th>Quotation No.</th><th>Total</th><th></th></tr></thead>
+          <tbody id="quotationArchiveBody"><tr><td colspan="5" class="empty">No saved quotations yet.</td></tr></tbody>
+        </table>
+      </div>`;
+
+    offerCard.insertAdjacentElement('afterend', card);
+
+    const style = document.createElement('style');
+    style.textContent = `
+      .quotation-archive-card{margin-top:18px}
+      .quotation-archive-wrap{overflow:auto;border:1px solid #e5e7eb;border-radius:12px}
+      .quotation-archive-table{width:100%;border-collapse:collapse;min-width:720px}
+      .quotation-archive-table th{background:#f7f8fa;color:#656b73;font-size:11px;text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:10px 12px;border-bottom:1px solid #e5e7eb}
+      .quotation-archive-table td{padding:11px 12px;border-bottom:1px solid #eceff2;font-size:13px}
+      .quotation-archive-table tr:last-child td{border-bottom:0}
+      .quotation-archive-table td:nth-child(4),.quotation-archive-table th:nth-child(4){text-align:right}
+      .quotation-archive-actions{display:flex;gap:6px;justify-content:flex-end}
+    `;
+    document.head.appendChild(style);
+
+    card.addEventListener('click', async event => {
+      const downloadBtn = event.target.closest('[data-archive-download]');
+      if (downloadBtn) {
+        const record = await getArchiveRecord(downloadBtn.dataset.archiveDownload);
+        if (record?.data) {
+          triggerBlobDownload(new Blob([record.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), record.filename);
+        }
+        return;
+      }
+      const deleteBtn = event.target.closest('[data-archive-delete]');
+      if (deleteBtn) {
+        if (!confirm('Delete this quotation from the archive?')) return;
+        await deleteArchiveRecord(deleteBtn.dataset.archiveDelete);
+        await renderQuotationArchive();
+      }
+    });
+  }
+
+  async function renderQuotationArchive() {
+    ensureArchiveUi();
+    const body = document.getElementById('quotationArchiveBody');
+    const count = document.getElementById('quotationArchiveCount');
+    if (!body || !count) return;
+    try {
+      const records = await getArchiveRecords();
+      count.textContent = `${records.length} quotation${records.length === 1 ? '' : 's'}`;
+      if (!records.length) {
+        body.innerHTML = '<tr><td colspan="5" class="empty">No saved quotations yet.</td></tr>';
+        return;
+      }
+      body.innerHTML = records.map(record => {
+        const dt = new Date(record.createdAt);
+        const date = Number.isNaN(dt.getTime()) ? '' : dt.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+        const total = new Intl.NumberFormat('en-GB', { style: 'currency', currency: record.currency || 'EUR' }).format(Number(record.total || 0));
+        return `<tr>
+          <td>${escapeHtml(date)}</td>
+          <td><strong>${escapeHtml(record.customer || '—')}</strong></td>
+          <td>${escapeHtml(record.quotationNo || '—')}</td>
+          <td>${escapeHtml(total)}</td>
+          <td><div class="quotation-archive-actions">
+            <button class="mini-btn" type="button" data-archive-download="${escapeAttr(record.id)}">Download</button>
+            <button class="mini-btn danger-text" type="button" data-archive-delete="${escapeAttr(record.id)}">Delete</button>
+          </div></td>
+        </tr>`;
+      }).join('');
+    } catch (err) {
+      console.warn('Quotation archive could not be loaded.', err);
+    }
+  }
+
+  async function exportSnapOnQuotation(event) {
     event.preventDefault();
     event.stopImmediatePropagation();
 
@@ -325,19 +494,39 @@
 
     const customerPart = result.customer ? '_' + safeFile(result.customer) : '';
     const quotationPart = result.quotationNo ? '_' + safeFile(result.quotationNo) : '';
-    XLSX.writeFile(result.wb, `Quotation${customerPart}${quotationPart}.xlsx`);
+    const filename = `Quotation${customerPart}${quotationPart}.xlsx`;
+    const data = XLSX.write(result.wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+    try {
+      await saveArchiveRecord({
+        id: (result.quotationNo || 'quotation') + '::' + Date.now(),
+        createdAt: new Date().toISOString(),
+        customer: result.customer || '',
+        quotationNo: result.quotationNo || '',
+        currency: document.getElementById('currency')?.value || 'EUR',
+        total: archiveTotal(),
+        filename,
+        data
+      });
+      await renderQuotationArchive();
+    } catch (err) {
+      console.warn('Quotation could not be saved to archive.', err);
+    }
+
+    triggerBlobDownload(blob, filename);
   }
 
   function lockCurrentVersionBadge() {
     const current = document.querySelector('.badge');
     if (!current) return;
     const badge = current.cloneNode(true);
-    badge.textContent = 'V39 · Live discount calculation';
+    badge.textContent = 'V40 · Automatic quotation archive';
     badge.removeAttribute('data-v34-locked');
     current.replaceWith(badge);
     new MutationObserver(() => {
-      if (badge.textContent !== 'V39 · Live discount calculation') {
-        badge.textContent = 'V39 · Live discount calculation';
+      if (badge.textContent !== 'V40 · Automatic quotation archive') {
+        badge.textContent = 'V40 · Automatic quotation archive';
       }
     }).observe(badge, { childList: true, characterData: true, subtree: true });
   }
@@ -345,12 +534,14 @@
   function install() {
     lockCurrentVersionBadge();
     const btn = document.getElementById('exportBtn');
-    if (btn && btn.dataset.v39QuotationDesign !== '1') {
-      btn.dataset.v39QuotationDesign = '1';
+    if (btn && btn.dataset.v40QuotationDesign !== '1') {
+      btn.dataset.v40QuotationDesign = '1';
       btn.addEventListener('click', exportSnapOnQuotation, true);
     }
     setTimeout(lockCurrentVersionBadge, 50);
     setTimeout(lockCurrentVersionBadge, 300);
+    ensureArchiveUi();
+    renderQuotationArchive();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
