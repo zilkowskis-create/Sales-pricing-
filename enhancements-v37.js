@@ -95,7 +95,21 @@
     }
   }
 
+  function syncQuotationInputs() {
+    try {
+      document.querySelectorAll('#offerBody [data-offer-field]').forEach(input => {
+        const uid = input.dataset.offerUid;
+        const field = input.dataset.offerField;
+        const item = state.offer.find(x => x.uid === uid);
+        if (!item) return;
+        if (field === 'qty') item.qty = Math.max(1, Math.round(Number(input.value) || 1));
+        if (field === 'extraDiscount') item.extraDiscount = Math.min(100, Math.max(0, Number(input.value) || 0));
+      });
+    } catch (_) {}
+  }
+
   function createQuotationWorkbook() {
+    syncQuotationInputs();
     if (typeof state === 'undefined' || !state.offer?.length) {
       alert('Please select at least one item first.');
       return null;
@@ -318,12 +332,12 @@
     const current = document.querySelector('.badge');
     if (!current) return;
     const badge = current.cloneNode(true);
-    badge.textContent = 'V37 · Selectable quotation columns';
+    badge.textContent = 'V39 · Live discount calculation';
     badge.removeAttribute('data-v34-locked');
     current.replaceWith(badge);
     new MutationObserver(() => {
-      if (badge.textContent !== 'V37 · Selectable quotation columns') {
-        badge.textContent = 'V37 · Selectable quotation columns';
+      if (badge.textContent !== 'V39 · Live discount calculation') {
+        badge.textContent = 'V39 · Live discount calculation';
       }
     }).observe(badge, { childList: true, characterData: true, subtree: true });
   }
@@ -331,8 +345,8 @@
   function install() {
     lockCurrentVersionBadge();
     const btn = document.getElementById('exportBtn');
-    if (btn && btn.dataset.v37QuotationDesign !== '1') {
-      btn.dataset.v37QuotationDesign = '1';
+    if (btn && btn.dataset.v39QuotationDesign !== '1') {
+      btn.dataset.v39QuotationDesign = '1';
       btn.addEventListener('click', exportSnapOnQuotation, true);
     }
     setTimeout(lockCurrentVersionBadge, 50);
