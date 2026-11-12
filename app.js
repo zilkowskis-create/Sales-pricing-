@@ -5,6 +5,7 @@ const EXPORT_OPTIONS_KEY = 'preislistenAnalyzerExportOptionsV1';
 const DRAFT_KEY = 'preislistenAnalyzerOfferDraftV1';
 const OFFER_SEQUENCE_KEY = 'preislistenAnalyzerOfferSequenceV1';
 const SEARCH_SETTINGS_KEY = 'preislistenAnalyzerSearchSettingsV1';
+const GLOBAL_SEARCH_MIGRATION_KEY = 'preislistenAnalyzerGlobalSearchV38';
 
 const DEFAULT_EXPORT_OPTIONS = {
   position: true,
@@ -45,6 +46,16 @@ const state = {
   exportOptions: loadExportOptions(),
   searchSettings: loadSearchSettings()
 };
+
+try {
+  if (!localStorage.getItem(GLOBAL_SEARCH_MIGRATION_KEY)) {
+    state.searchSettings.source = '';
+    state.searchSettings.family = '';
+    state.searchSettings.color = '';
+    localStorage.setItem(SEARCH_SETTINGS_KEY, JSON.stringify(state.searchSettings));
+    localStorage.setItem(GLOBAL_SEARCH_MIGRATION_KEY, '1');
+  }
+} catch (_) {}
 
 const el = (id) => document.getElementById(id);
 const fileInput = el('fileInput');
@@ -679,20 +690,33 @@ function renderPriceListTabs() {
   const groups = getPriceListGroups();
   if (!groups.length) { priceListTabs.innerHTML = ''; return; }
 
-  const current = currentPriceListParent();
-  if (!state.searchSettings.source || !groups.some(g => g.key === state.searchSettings.source)) {
-    state.searchSettings.source = current;
+  const selectedSource = groups.some(g => g.key === state.searchSettings.source)
+    ? state.searchSettings.source
+    : '';
+
+  if (state.searchSettings.source && !selectedSource) {
+    state.searchSettings.source = '';
     saveSearchSettings();
   }
 
-  priceListTabs.innerHTML = groups.map(group => {
+  const allTotal = groups.reduce((sum, group) =>
+    sum + group.lists.reduce((groupSum, list) => groupSum + list.items.length, 0), 0);
+
+  const allTab = `<button type="button" class="price-list-tab ${selectedSource ? '' : 'active'}" data-price-list-tab="">
+    <strong>All price lists</strong>
+    <small>${groups.length} files · ${allTotal.toLocaleString('en-GB')} items</small>
+  </button>`;
+
+  const fileTabs = groups.map(group => {
     const total = group.lists.reduce((sum, list) => sum + list.items.length, 0);
-    const active = group.key === current;
+    const active = group.key === selectedSource;
     return `<button type="button" class="price-list-tab ${active ? 'active' : ''}" data-price-list-tab="${escapeAttr(group.key)}">
       <strong>${escapeHtml(shortFileName(group.fileName))}</strong>
       <small>${group.lists.length} sheets · ${total.toLocaleString('en-GB')} items</small>
     </button>`;
   }).join('');
+
+  priceListTabs.innerHTML = allTab + fileTabs;
 }
 
 function renderSheetToggles() {
@@ -1455,7 +1479,7 @@ function fillFilterSelect(select, options, emptyLabel, currentValue) {
 }
 
 function clearFilters() {
-  state.searchSettings.source = getPriceListGroups()[0]?.key || '';
+  state.searchSettings.source = '';
   state.searchSettings.family = '';
   state.searchSettings.color = '';
   saveSearchSettings();
