@@ -236,6 +236,36 @@
       setCell(ws, XLSX.utils.encode_cell({ r: 8, c: i }), field.header, style);
     });
 
+    const colByKey = Object.fromEntries(fields.map((field, index) => [field.key, XLSX.utils.encode_col(index)]));
+
+    function finalUnitFormula(item, row) {
+      let baseExpr;
+      if (colByKey.netPrice) {
+        baseExpr = `${colByKey.netPrice}${row}`;
+      } else if (colByKey.listPrice) {
+        const discountExpr = colByKey.priceListDiscount
+          ? `${colByKey.priceListDiscount}${row}`
+          : String(Number(item.priceListDiscount || 0) / 100);
+        baseExpr = `${colByKey.listPrice}${row}*(1-${discountExpr})`;
+      } else {
+        baseExpr = String(Number(item.netPrice || 0));
+      }
+
+      const secondDiscountExpr = colByKey.extraDiscount
+        ? `${colByKey.extraDiscount}${row}`
+        : String(Number(item.extraDiscount || 0) / 100);
+
+      return `(${baseExpr})*(1-${secondDiscountExpr})`;
+    }
+
+    function totalFormula(item, row) {
+      const qtyExpr = colByKey.qty ? `${colByKey.qty}${row}` : String(Number(item.qty || 1));
+      const unitExpr = colByKey.finalUnitPrice
+        ? `${colByKey.finalUnitPrice}${row}`
+        : finalUnitFormula(item, row);
+      return `${qtyExpr}*(${unitExpr})`;
+    }
+
     for (let line = 0; line < minimumLines; line++) {
       const row = firstDataRow + line;
       const item = state.offer[line];
@@ -257,9 +287,15 @@
           return;
         }
 
-        const value = valueForField(item, field, line);
         const format = field.money ? moneyFormat : field.percent ? '0.00%' : field.format;
-        setCell(ws, addr, value, style, format);
+        if (field.key === 'finalUnitPrice') {
+          setCell(ws, addr, { f: finalUnitFormula(item, row) }, style, format);
+        } else if (field.key === 'total') {
+          setCell(ws, addr, { f: totalFormula(item, row) }, style, format);
+        } else {
+          const value = valueForField(item, field, line);
+          setCell(ws, addr, value, style, format);
+        }
 
         if (field.key === 'color' && typeof ralPrimaryHex === 'function') {
           try {
@@ -295,13 +331,28 @@
       font: { name: 'Arial', bold: true, sz: 10.5, color: { rgb: BLACK } },
       alignment: { horizontal: 'right' }
     });
-    setCell(ws, `${summaryValueCol}${subtotalRow}`, grandTotal, {
-      font: { name: 'Arial', sz: 10.5, color: { rgb: BLACK } },
-      alignment: { horizontal: 'right' }
-    }, moneyFormat);
+    const firstOfferRow = firstDataRow;
+    const lastOfferRow = firstDataRow + state.offer.length - 1;
+    let grandTotalFormula = '';
+    if (colByKey.total) {
+      grandTotalFormula = `SUM(${colByKey.total}${firstOfferRow}:${colByKey.total}${lastOfferRow})`;
+    }
+
+    setCell(ws, `${summaryValueCol}${subtotalRow}`,
+      grandTotalFormula ? { f: grandTotalFormula } : grandTotal,
+      {
+        font: { name: 'Arial', sz: 10.5, color: { rgb: BLACK } },
+        alignment: { horizontal: 'right' }
+      },
+      moneyFormat
+    );
 
     setCell(ws, `${summaryLabelCol}${totalRow}`, 'TOTAL:', totalStyle);
-    setCell(ws, `${summaryValueCol}${totalRow}`, grandTotal, totalStyle, moneyFormat);
+    setCell(ws, `${summaryValueCol}${totalRow}`,
+      grandTotalFormula ? { f: `${summaryValueCol}${subtotalRow}` } : grandTotal,
+      totalStyle,
+      moneyFormat
+    );
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Quotation');
@@ -521,12 +572,12 @@
     const current = document.querySelector('.badge');
     if (!current) return;
     const badge = current.cloneNode(true);
-    badge.textContent = 'V40 · Automatic quotation archive';
+    badge.textContent = 'V41 · Dynamic Excel formulas';
     badge.removeAttribute('data-v34-locked');
     current.replaceWith(badge);
     new MutationObserver(() => {
-      if (badge.textContent !== 'V40 · Automatic quotation archive') {
-        badge.textContent = 'V40 · Automatic quotation archive';
+      if (badge.textContent !== 'V41 · Dynamic Excel formulas') {
+        badge.textContent = 'V41 · Dynamic Excel formulas';
       }
     }).observe(badge, { childList: true, characterData: true, subtree: true });
   }
@@ -534,8 +585,8 @@
   function install() {
     lockCurrentVersionBadge();
     const btn = document.getElementById('exportBtn');
-    if (btn && btn.dataset.v40QuotationDesign !== '1') {
-      btn.dataset.v40QuotationDesign = '1';
+    if (btn && btn.dataset.v41QuotationDesign !== '1') {
+      btn.dataset.v41QuotationDesign = '1';
       btn.addEventListener('click', exportSnapOnQuotation, true);
     }
     setTimeout(lockCurrentVersionBadge, 50);
