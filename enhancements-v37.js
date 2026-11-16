@@ -140,9 +140,7 @@
     const ws = {};
     ws['!ref'] = `A1:${lastSheetCol}${totalRow + 3}`;
     ws['!merges'] = [
-      XLSX.utils.decode_range(`A1:${lastSheetCol}1`),
-      XLSX.utils.decode_range(`A2:${lastSheetCol}2`),
-      XLSX.utils.decode_range(`A4:${lastSheetCol}4`)
+      XLSX.utils.decode_range(`A2:${lastSheetCol}2`)
     ];
     ws['!cols'] = Array.from({ length: sheetColCount }, (_, i) => {
       let width = fields[i]?.width || 16;
@@ -151,11 +149,11 @@
       return { wch: width };
     });
     ws['!rows'] = [];
-    ws['!rows'][0] = { hpt: 30 };
-    ws['!rows'][1] = { hpt: 23 };
-    ws['!rows'][3] = { hpt: 26 };
+    ws['!rows'][0] = { hpt: 8 };
+    ws['!rows'][1] = { hpt: 28 };
+    ws['!rows'][2] = { hpt: 5 };
+    ws['!rows'][3] = { hpt: 22 };
     ws['!rows'][4] = { hpt: 22 };
-    ws['!rows'][5] = { hpt: 22 };
     ws['!rows'][8] = { hpt: 27 };
     for (let r = firstDataRow - 1; r <= lastDataRow - 1; r++) ws['!rows'][r] = { hpt: 23 };
     ws['!rows'][totalRow - 1] = { hpt: 27 };
@@ -163,18 +161,8 @@
     ws['!freeze'] = { xSplit: 0, ySplit: 9 };
     if (tableColCount > 0) ws['!autofilter'] = { ref: `A9:${lastTableCol}${firstDataRow + state.offer.length - 1}` };
 
-    const redBar = {
-      font: { name: 'Arial', bold: true, sz: 22, color: { rgb: WHITE } },
-      fill: { fgColor: { rgb: RED } },
-      alignment: { vertical: 'center', horizontal: 'left' }
-    };
-    const blackBar = {
-      font: { name: 'Arial', italic: true, sz: 11, color: { rgb: WHITE } },
-      fill: { fgColor: { rgb: BLACK } },
-      alignment: { vertical: 'center', horizontal: 'left' }
-    };
     const quotationTitle = {
-      font: { name: 'Arial', bold: true, sz: 18, color: { rgb: RED } },
+      font: { name: 'Arial', bold: true, sz: 18, color: { rgb: BLACK } },
       alignment: { vertical: 'center', horizontal: 'left' }
     };
     const labelStyle = {
@@ -209,20 +197,15 @@
       alignment: { vertical: 'center', horizontal: 'right' }
     };
 
-    for (let c = 0; c < sheetColCount; c++) {
-      setCell(ws, XLSX.utils.encode_cell({ r: 0, c }), c === 0 ? 'SNAP-ON EQUIPMENT' : '', redBar);
-      setCell(ws, XLSX.utils.encode_cell({ r: 1, c }), c === 0 ? 'AUTHORIZED DEALER / PARTNER' : '', blackBar);
-    }
-
-    setCell(ws, 'A4', 'COMMERCIAL QUOTATION', quotationTitle);
-    setCell(ws, 'A5', 'Customer:', labelStyle);
-    setCell(ws, 'B5', customer, metaStyle);
-    setCell(ws, 'A6', 'Quotation No.:', labelStyle);
-    setCell(ws, 'B6', quotationNo, metaStyle);
-    setCell(ws, `${rightLabelCol}5`, 'Date:', rightLabelStyle);
-    setCell(ws, `${rightValueCol}5`, dateText(quotationDate), metaStyle);
-    setCell(ws, `${rightLabelCol}6`, 'Currency:', rightLabelStyle);
-    setCell(ws, `${rightValueCol}6`, currency, metaStyle);
+    setCell(ws, 'A2', 'COMMERCIAL QUOTATION', quotationTitle);
+    setCell(ws, 'A4', 'Customer:', labelStyle);
+    setCell(ws, 'B4', customer, metaStyle);
+    setCell(ws, 'A5', 'Quotation No.:', labelStyle);
+    setCell(ws, 'B5', quotationNo, metaStyle);
+    setCell(ws, `${rightLabelCol}4`, 'Date:', rightLabelStyle);
+    setCell(ws, `${rightValueCol}4`, dateText(quotationDate), metaStyle);
+    setCell(ws, `${rightLabelCol}5`, 'Currency:', rightLabelStyle);
+    setCell(ws, `${rightValueCol}5`, currency, metaStyle);
 
     fields.forEach((field, i) => {
       const style = {
@@ -572,12 +555,12 @@
     const current = document.querySelector('.badge');
     if (!current) return;
     const badge = current.cloneNode(true);
-    badge.textContent = 'V41 · Dynamic Excel formulas';
+    badge.textContent = 'V42 · Clean quotation layout';
     badge.removeAttribute('data-v34-locked');
     current.replaceWith(badge);
     new MutationObserver(() => {
-      if (badge.textContent !== 'V41 · Dynamic Excel formulas') {
-        badge.textContent = 'V41 · Dynamic Excel formulas';
+      if (badge.textContent !== 'V42 · Clean quotation layout') {
+        badge.textContent = 'V42 · Clean quotation layout';
       }
     }).observe(badge, { childList: true, characterData: true, subtree: true });
   }
@@ -585,8 +568,8 @@
   function install() {
     lockCurrentVersionBadge();
     const btn = document.getElementById('exportBtn');
-    if (btn && btn.dataset.v41QuotationDesign !== '1') {
-      btn.dataset.v41QuotationDesign = '1';
+    if (btn && btn.dataset.v42QuotationDesign !== '1') {
+      btn.dataset.v42QuotationDesign = '1';
       btn.addEventListener('click', exportSnapOnQuotation, true);
     }
     setTimeout(lockCurrentVersionBadge, 50);
