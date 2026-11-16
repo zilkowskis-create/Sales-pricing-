@@ -122,11 +122,11 @@
     const moneyFormat = currencyFormat(currency);
     const fields = selectedFields(currency);
 
-    const firstDataRow = 10;
-    const minimumLines = Math.max(6, state.offer.length);
-    const lastDataRow = firstDataRow + minimumLines - 1;
-    const subtotalRow = lastDataRow + 2;
-    const totalRow = subtotalRow + 1;
+    const headerRow = 8;
+    const firstDataRow = 9;
+    const lineCount = Math.max(2, state.offer.length);
+    const lastDataRow = firstDataRow + lineCount - 1;
+    const totalRow = lastDataRow + 2;
 
     const tableColCount = fields.length;
     const sheetColCount = Math.max(tableColCount, 4);
@@ -137,86 +137,108 @@
     const rightLabelCol = XLSX.utils.encode_col(rightLabelColIndex);
     const rightValueCol = XLSX.utils.encode_col(rightValueColIndex);
 
-    const ws = {};
-    ws['!ref'] = `A1:${lastSheetCol}${totalRow + 3}`;
-    ws['!merges'] = [
-      XLSX.utils.decode_range(`A2:${lastSheetCol}2`)
-    ];
-    ws['!cols'] = Array.from({ length: sheetColCount }, (_, i) => {
-      let width = fields[i]?.width || 16;
-      if (i === 0) width = Math.max(width, 16);
-      if (i === 1) width = Math.max(width, 24);
-      return { wch: width };
-    });
-    ws['!rows'] = [];
-    ws['!rows'][0] = { hpt: 8 };
-    ws['!rows'][1] = { hpt: 28 };
-    ws['!rows'][2] = { hpt: 5 };
-    ws['!rows'][3] = { hpt: 22 };
-    ws['!rows'][4] = { hpt: 22 };
-    ws['!rows'][8] = { hpt: 27 };
-    for (let r = firstDataRow - 1; r <= lastDataRow - 1; r++) ws['!rows'][r] = { hpt: 23 };
-    ws['!rows'][totalRow - 1] = { hpt: 27 };
-    ws['!margins'] = { left: 0.3, right: 0.3, top: 0.35, bottom: 0.35, header: 0.2, footer: 0.2 };
-    ws['!freeze'] = { xSplit: 0, ySplit: 9 };
-    if (tableColCount > 0) ws['!autofilter'] = { ref: `A9:${lastTableCol}${firstDataRow + state.offer.length - 1}` };
+    const BLUE_TITLE = '17365D';
+    const BLUE_HEADER = '1F4E78';
+    const LABEL_BLUE = '44546A';
+    const BORDER_BLUE = 'D9E2F3';
+    const TOTAL_FILL = 'D9EAF7';
 
-    const quotationTitle = {
-      font: { name: 'Arial', bold: true, sz: 18, color: { rgb: BLACK } },
+    const referenceWidths = {
+      position: 8,
+      article: 24,
+      model: 34,
+      color: 18,
+      qty: 10,
+      listPrice: 18,
+      priceListDiscount: 14,
+      netPrice: 18,
+      extraDiscount: 18,
+      finalUnitPrice: 20,
+      total: 18,
+      family: 24,
+      source: 24
+    };
+
+    const ws = {};
+    ws['!ref'] = `A1:${lastSheetCol}${totalRow}`;
+    ws['!merges'] = [XLSX.utils.decode_range(`A1:${lastSheetCol}1`)];
+    ws['!cols'] = fields.map(field => ({ wch: referenceWidths[field.key] || field.width || 16 }));
+    while (ws['!cols'].length < sheetColCount) ws['!cols'].push({ wch: 16 });
+
+    ws['!rows'] = [];
+    ws['!rows'][0] = { hpt: 26 };
+    ws['!rows'][1] = { hpt: 8 };
+    ws['!rows'][2] = { hpt: 20 };
+    ws['!rows'][3] = { hpt: 20 };
+    ws['!rows'][4] = { hpt: 8 };
+    ws['!rows'][5] = { hpt: 8 };
+    ws['!rows'][6] = { hpt: 8 };
+    ws['!rows'][headerRow - 1] = { hpt: 24 };
+    for (let r = firstDataRow - 1; r <= lastDataRow - 1; r++) ws['!rows'][r] = { hpt: 22 };
+    ws['!rows'][totalRow - 1] = { hpt: 22 };
+
+    ws['!margins'] = { left: 0.25, right: 0.25, top: 0.3, bottom: 0.3, header: 0.15, footer: 0.15 };
+    ws['!freeze'] = { xSplit: 0, ySplit: headerRow };
+    if (tableColCount > 0) ws['!autofilter'] = { ref: `A${headerRow}:${lastTableCol}${firstDataRow + state.offer.length - 1}` };
+
+    const lightBorder = {
+      top: { style: 'thin', color: { rgb: BORDER_BLUE } },
+      bottom: { style: 'thin', color: { rgb: BORDER_BLUE } },
+      left: { style: 'thin', color: { rgb: BORDER_BLUE } },
+      right: { style: 'thin', color: { rgb: BORDER_BLUE } }
+    };
+
+    const titleStyle = {
+      font: { name: 'Calibri', bold: true, sz: 18, color: { rgb: WHITE } },
+      fill: { fgColor: { rgb: BLUE_TITLE } },
       alignment: { vertical: 'center', horizontal: 'left' }
     };
     const labelStyle = {
-      font: { name: 'Arial', bold: true, sz: 10.5, color: { rgb: BLACK } },
+      font: { name: 'Calibri', bold: true, sz: 11, color: { rgb: LABEL_BLUE } },
       alignment: { vertical: 'center', horizontal: 'left' }
     };
-    const metaStyle = {
-      font: { name: 'Arial', sz: 10.5, color: { rgb: BLACK } },
-      fill: { fgColor: { rgb: CREAM } },
-      border: thinBorder(),
+    const valueStyle = {
+      font: { name: 'Calibri', sz: 11, color: { rgb: BLACK } },
       alignment: { vertical: 'center', horizontal: 'left' }
     };
-    const rightLabelStyle = {
-      font: { name: 'Arial', bold: true, sz: 10.5, color: { rgb: BLACK } },
-      alignment: { vertical: 'center', horizontal: 'right' }
-    };
-    const tableHeader = {
-      font: { name: 'Arial', bold: true, sz: 10.5, color: { rgb: WHITE } },
-      fill: { fgColor: { rgb: BLACK } },
-      border: thinBorder(),
+    const headerStyle = {
+      font: { name: 'Calibri', bold: true, sz: 11, color: { rgb: WHITE } },
+      fill: { fgColor: { rgb: BLUE_HEADER } },
+      border: lightBorder,
       alignment: { vertical: 'center', horizontal: 'center', wrapText: true }
     };
-    const bodyBase = {
-      font: { name: 'Arial', sz: 10, color: { rgb: BLACK } },
-      fill: { fgColor: { rgb: CREAM } },
-      border: thinBorder(),
+    const bodyStyle = {
+      font: { name: 'Calibri', sz: 11, color: { rgb: BLACK } },
+      fill: { fgColor: { rgb: WHITE } },
+      border: lightBorder,
       alignment: { vertical: 'center', horizontal: 'left' }
     };
     const totalStyle = {
-      font: { name: 'Arial', bold: true, sz: 11.5, color: { rgb: WHITE } },
-      fill: { fgColor: { rgb: RED } },
+      font: { name: 'Calibri', bold: true, sz: 11, color: { rgb: BLACK } },
+      fill: { fgColor: { rgb: TOTAL_FILL } },
+      border: lightBorder,
+      alignment: { vertical: 'center', horizontal: 'left' }
+    };
+    const totalValueStyle = {
+      ...totalStyle,
       alignment: { vertical: 'center', horizontal: 'right' }
     };
 
-    setCell(ws, 'A2', 'COMMERCIAL QUOTATION', quotationTitle);
-    setCell(ws, 'A4', 'Customer:', labelStyle);
-    setCell(ws, 'B4', customer, metaStyle);
-    setCell(ws, 'A5', 'Quotation No.:', labelStyle);
-    setCell(ws, 'B5', quotationNo, metaStyle);
-    setCell(ws, `${rightLabelCol}4`, 'Date:', rightLabelStyle);
-    setCell(ws, `${rightValueCol}4`, dateText(quotationDate), metaStyle);
-    setCell(ws, `${rightLabelCol}5`, 'Currency:', rightLabelStyle);
-    setCell(ws, `${rightValueCol}5`, currency, metaStyle);
+    for (let col = 0; col < sheetColCount; col++) {
+      setCell(ws, XLSX.utils.encode_cell({ r: 0, c: col }), col === 0 ? 'QUOTATION' : '', titleStyle);
+    }
+
+    setCell(ws, 'A3', 'Customer', labelStyle);
+    setCell(ws, 'B3', customer, valueStyle);
+    setCell(ws, 'A4', 'Date', labelStyle);
+    setCell(ws, 'B4', dateText(quotationDate), valueStyle);
+    setCell(ws, `${rightLabelCol}3`, 'Quotation No.', labelStyle);
+    setCell(ws, `${rightValueCol}3`, quotationNo, valueStyle);
+    setCell(ws, `${rightLabelCol}4`, 'Currency', labelStyle);
+    setCell(ws, `${rightValueCol}4`, currency, valueStyle);
 
     fields.forEach((field, i) => {
-      const style = {
-        ...tableHeader,
-        alignment: {
-          vertical: 'center',
-          horizontal: field.align === 'left' ? 'left' : 'center',
-          wrapText: true
-        }
-      };
-      setCell(ws, XLSX.utils.encode_cell({ r: 8, c: i }), field.header, style);
+      setCell(ws, XLSX.utils.encode_cell({ r: headerRow - 1, c: i }), field.header, headerStyle);
     });
 
     const colByKey = Object.fromEntries(fields.map((field, index) => [field.key, XLSX.utils.encode_col(index)]));
@@ -233,11 +255,9 @@
       } else {
         baseExpr = String(Number(item.netPrice || 0));
       }
-
       const secondDiscountExpr = colByKey.extraDiscount
         ? `${colByKey.extraDiscount}${row}`
         : String(Number(item.extraDiscount || 0) / 100);
-
       return `(${baseExpr})*(1-${secondDiscountExpr})`;
     }
 
@@ -246,24 +266,19 @@
       const unitExpr = colByKey.finalUnitPrice
         ? `${colByKey.finalUnitPrice}${row}`
         : finalUnitFormula(item, row);
-      return `${qtyExpr}*(${unitExpr})`;
+      return `${unitExpr}*${qtyExpr}`;
     }
 
-    for (let line = 0; line < minimumLines; line++) {
+    for (let line = 0; line < lineCount; line++) {
       const row = firstDataRow + line;
       const item = state.offer[line];
 
       fields.forEach((field, colIndex) => {
         const addr = XLSX.utils.encode_cell({ r: row - 1, c: colIndex });
-        const align = field.align || 'left';
-        const style = {
-          ...bodyBase,
-          font: {
-            ...bodyBase.font,
-            bold: ['position', 'article', 'model', 'color'].includes(field.key)
-          },
-          alignment: { vertical: 'center', horizontal: align }
-        };
+        const align = ['qty','listPrice','priceListDiscount','netPrice','extraDiscount','finalUnitPrice','total'].includes(field.key)
+          ? 'right'
+          : 'left';
+        let style = { ...bodyStyle, alignment: { vertical: 'center', horizontal: align } };
 
         if (!item) {
           setCell(ws, addr, '', style);
@@ -276,8 +291,7 @@
         } else if (field.key === 'total') {
           setCell(ws, addr, { f: totalFormula(item, row) }, style, format);
         } else {
-          const value = valueForField(item, field, line);
-          setCell(ws, addr, value, style, format);
+          setCell(ws, addr, valueForField(item, field, line), style, format);
         }
 
         if (field.key === 'color' && typeof ralPrimaryHex === 'function') {
@@ -290,6 +304,7 @@
                 fill: { fgColor: { rgb } },
                 font: {
                   ...style.font,
+                  bold: true,
                   color: { rgb: typeof isDarkHex === 'function' && isDarkHex(hex) ? WHITE : '111111' }
                 }
               };
@@ -299,58 +314,43 @@
       });
     }
 
-    const grandTotal = state.offer.reduce((sum, item) => {
-      const quoteUnit = Number(item.netPrice || 0) * (1 - Number(item.extraDiscount || 0) / 100);
-      return sum + quoteUnit * Number(item.qty || 1);
-    }, 0);
-
     const totalFieldIndex = fields.findIndex(field => field.key === 'total');
     const summaryValueColIndex = totalFieldIndex >= 0 ? totalFieldIndex : Math.max(1, tableColCount - 1);
     const summaryLabelColIndex = Math.max(0, summaryValueColIndex - 1);
     const summaryValueCol = XLSX.utils.encode_col(summaryValueColIndex);
     const summaryLabelCol = XLSX.utils.encode_col(summaryLabelColIndex);
 
-    setCell(ws, `${summaryLabelCol}${subtotalRow}`, 'Subtotal:', {
-      font: { name: 'Arial', bold: true, sz: 10.5, color: { rgb: BLACK } },
-      alignment: { horizontal: 'right' }
-    });
-    const firstOfferRow = firstDataRow;
+    const grandTotal = state.offer.reduce((sum, item) => {
+      const quoteUnit = Number(item.netPrice || 0) * (1 - Number(item.extraDiscount || 0) / 100);
+      return sum + quoteUnit * Number(item.qty || 1);
+    }, 0);
+
     const lastOfferRow = firstDataRow + state.offer.length - 1;
-    let grandTotalFormula = '';
-    if (colByKey.total) {
-      grandTotalFormula = `SUM(${colByKey.total}${firstOfferRow}:${colByKey.total}${lastOfferRow})`;
-    }
+    const grandTotalFormula = colByKey.total
+      ? `SUM(${colByKey.total}${firstDataRow}:${colByKey.total}${lastOfferRow})`
+      : '';
 
-    setCell(ws, `${summaryValueCol}${subtotalRow}`,
-      grandTotalFormula ? { f: grandTotalFormula } : grandTotal,
-      {
-        font: { name: 'Arial', sz: 10.5, color: { rgb: BLACK } },
-        alignment: { horizontal: 'right' }
-      },
-      moneyFormat
-    );
-
-    setCell(ws, `${summaryLabelCol}${totalRow}`, 'TOTAL:', totalStyle);
+    setCell(ws, `${summaryLabelCol}${totalRow}`, 'GRAND TOTAL', totalStyle);
     setCell(ws, `${summaryValueCol}${totalRow}`,
-      grandTotalFormula ? { f: `${summaryValueCol}${subtotalRow}` } : grandTotal,
-      totalStyle,
+      grandTotalFormula ? { f: grandTotalFormula } : grandTotal,
+      totalValueStyle,
       moneyFormat
     );
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Quotation');
     wb.Props = {
-      Title: quotationNo ? `Quotation ${quotationNo}` : 'Commercial Quotation',
-      Subject: customer ? `Commercial quotation for ${customer}` : 'Commercial quotation',
-      Author: 'Snap-on Equipment',
-      Company: 'Snap-on Equipment',
+      Title: quotationNo ? `Quotation ${quotationNo}` : 'Quotation',
+      Subject: customer ? `Quotation for ${customer}` : 'Quotation',
+      Author: 'Sales Pricing',
+      Company: '',
       CreatedDate: new Date()
     };
 
     return { wb, customer, quotationNo };
   }
 
-  const ARCHIVE_DB_NAME = 'salesPricingQuotationArchiveDB';
+    const ARCHIVE_DB_NAME = 'salesPricingQuotationArchiveDB';
   const ARCHIVE_STORE = 'quotations';
 
   function openArchiveDb() {
@@ -555,12 +555,12 @@
     const current = document.querySelector('.badge');
     if (!current) return;
     const badge = current.cloneNode(true);
-    badge.textContent = 'V42 · Clean quotation layout';
+    badge.textContent = 'V43 · Reference quotation format';
     badge.removeAttribute('data-v34-locked');
     current.replaceWith(badge);
     new MutationObserver(() => {
-      if (badge.textContent !== 'V42 · Clean quotation layout') {
-        badge.textContent = 'V42 · Clean quotation layout';
+      if (badge.textContent !== 'V43 · Reference quotation format') {
+        badge.textContent = 'V43 · Reference quotation format';
       }
     }).observe(badge, { childList: true, characterData: true, subtree: true });
   }
@@ -568,8 +568,8 @@
   function install() {
     lockCurrentVersionBadge();
     const btn = document.getElementById('exportBtn');
-    if (btn && btn.dataset.v42QuotationDesign !== '1') {
-      btn.dataset.v42QuotationDesign = '1';
+    if (btn && btn.dataset.v43QuotationDesign !== '1') {
+      btn.dataset.v43QuotationDesign = '1';
       btn.addEventListener('click', exportSnapOnQuotation, true);
     }
     setTimeout(lockCurrentVersionBadge, 50);
