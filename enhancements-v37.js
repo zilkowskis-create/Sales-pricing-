@@ -52,12 +52,12 @@
       { key: 'color', header: 'Colour / RAL', width: 17, align: 'left' },
       { key: 'family', header: 'Family / Group', width: 23, align: 'left' },
       { key: 'qty', header: 'Qty', width: 9, align: 'center', format: '0' },
-      { key: 'listPrice', header: 'List Price ' + currency, width: 17, align: 'right', money: true },
+      { key: 'listPrice', header: 'List Price', width: 17, align: 'right', money: true },
       { key: 'priceListDiscount', header: 'Discount', width: 13, align: 'center', percent: true },
-      { key: 'netPrice', header: 'Net Price ' + currency, width: 17, align: 'right', money: true },
+      { key: 'netPrice', header: 'Net Price', width: 17, align: 'right', money: true },
       { key: 'extraDiscount', header: 'Second Discount', width: 17, align: 'center', percent: true },
-      { key: 'finalUnitPrice', header: 'Quote/Unit ' + currency, width: 18, align: 'right', money: true },
-      { key: 'total', header: 'Total ' + currency, width: 18, align: 'right', money: true },
+      { key: 'finalUnitPrice', header: 'Quote/Unit', width: 18, align: 'right', money: true },
+      { key: 'total', header: 'Total', width: 18, align: 'right', money: true },
       { key: 'source', header: 'Price List / Source', width: 23, align: 'left' }
     ];
   }
@@ -234,8 +234,6 @@
     setCell(ws, 'B4', dateText(quotationDate), valueStyle);
     setCell(ws, `${rightLabelCol}3`, 'Quotation No.', labelStyle);
     setCell(ws, `${rightValueCol}3`, quotationNo, valueStyle);
-    setCell(ws, `${rightLabelCol}4`, 'Currency', labelStyle);
-    setCell(ws, `${rightValueCol}4`, currency, valueStyle);
 
     fields.forEach((field, i) => {
       setCell(ws, XLSX.utils.encode_cell({ r: headerRow - 1, c: i }), field.header, headerStyle);
@@ -519,6 +517,27 @@
     }
   }
 
+  async function hideGridlinesInWorkbook(data) {
+    if (!window.JSZip) return data;
+    try {
+      const zip = await JSZip.loadAsync(data);
+      const sheetPath = 'xl/worksheets/sheet1.xml';
+      const file = zip.file(sheetPath);
+      if (!file) return data;
+      let xml = await file.async('string');
+      if (/<sheetView\b[^>]*showGridLines=/.test(xml)) {
+        xml = xml.replace(/(<sheetView\b[^>]*?)showGridLines="[^"]*"/, '$1showGridLines="0"');
+      } else {
+        xml = xml.replace(/<sheetView\b/, '<sheetView showGridLines="0"');
+      }
+      zip.file(sheetPath, xml);
+      return await zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' });
+    } catch (err) {
+      console.warn('Could not hide Excel gridlines.', err);
+      return data;
+    }
+  }
+
   async function exportSnapOnQuotation(event) {
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -529,7 +548,8 @@
     const customerPart = result.customer ? '_' + safeFile(result.customer) : '';
     const quotationPart = result.quotationNo ? '_' + safeFile(result.quotationNo) : '';
     const filename = `Quotation${customerPart}${quotationPart}.xlsx`;
-    const data = XLSX.write(result.wb, { bookType: 'xlsx', type: 'array' });
+    let data = XLSX.write(result.wb, { bookType: 'xlsx', type: 'array' });
+    data = await hideGridlinesInWorkbook(data);
     const blob = new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
     try {
@@ -555,12 +575,12 @@
     const current = document.querySelector('.badge');
     if (!current) return;
     const badge = current.cloneNode(true);
-    badge.textContent = 'V43 · Reference quotation format';
+    badge.textContent = 'V44 · Final clean quotation';
     badge.removeAttribute('data-v34-locked');
     current.replaceWith(badge);
     new MutationObserver(() => {
-      if (badge.textContent !== 'V43 · Reference quotation format') {
-        badge.textContent = 'V43 · Reference quotation format';
+      if (badge.textContent !== 'V44 · Final clean quotation') {
+        badge.textContent = 'V44 · Final clean quotation';
       }
     }).observe(badge, { childList: true, characterData: true, subtree: true });
   }
@@ -568,8 +588,8 @@
   function install() {
     lockCurrentVersionBadge();
     const btn = document.getElementById('exportBtn');
-    if (btn && btn.dataset.v43QuotationDesign !== '1') {
-      btn.dataset.v43QuotationDesign = '1';
+    if (btn && btn.dataset.v44QuotationDesign !== '1') {
+      btn.dataset.v44QuotationDesign = '1';
       btn.addEventListener('click', exportSnapOnQuotation, true);
     }
     setTimeout(lockCurrentVersionBadge, 50);
