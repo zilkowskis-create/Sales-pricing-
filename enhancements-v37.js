@@ -179,7 +179,6 @@
 
     ws['!margins'] = { left: 0.25, right: 0.25, top: 0.3, bottom: 0.3, header: 0.15, footer: 0.15 };
     ws['!freeze'] = { xSplit: 0, ySplit: headerRow };
-    if (tableColCount > 0) ws['!autofilter'] = { ref: `A${headerRow}:${lastTableCol}${firstDataRow + state.offer.length - 1}` };
 
     const lightBorder = {
       top: { style: 'thin', color: { rgb: BORDER_BLUE } },
@@ -588,8 +587,8 @@
   function install() {
     lockCurrentVersionBadge();
     const btn = document.getElementById('exportBtn');
-    if (btn && btn.dataset.v44QuotationDesign !== '1') {
-      btn.dataset.v44QuotationDesign = '1';
+    if (btn && btn.dataset.v46QuotationDesign !== '1') {
+      btn.dataset.v46QuotationDesign = '1';
       btn.addEventListener('click', exportSnapOnQuotation, true);
     }
     setTimeout(lockCurrentVersionBadge, 50);
