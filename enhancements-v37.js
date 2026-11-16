@@ -681,12 +681,12 @@
     const current = document.querySelector('.badge');
     if (!current) return;
     const badge = current.cloneNode(true);
-    badge.textContent = 'V44 · Final clean quotation';
+    badge.textContent = 'V48 · Archive load & global search';
     badge.removeAttribute('data-v34-locked');
     current.replaceWith(badge);
     new MutationObserver(() => {
-      if (badge.textContent !== 'V44 · Final clean quotation') {
-        badge.textContent = 'V44 · Final clean quotation';
+      if (badge.textContent !== 'V48 · Archive load & global search') {
+        badge.textContent = 'V48 · Archive load & global search';
       }
     }).observe(badge, { childList: true, characterData: true, subtree: true });
   }
@@ -694,8 +694,8 @@
   function install() {
     lockCurrentVersionBadge();
     const btn = document.getElementById('exportBtn');
-    if (btn && btn.dataset.v47QuotationDesign !== '1') {
-      btn.dataset.v47QuotationDesign = '1';
+    if (btn && btn.dataset.v48QuotationDesign !== '1') {
+      btn.dataset.v48QuotationDesign = '1';
       btn.addEventListener('click', exportSnapOnQuotation, true);
     }
     setTimeout(lockCurrentVersionBadge, 50);
