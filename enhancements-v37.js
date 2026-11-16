@@ -428,6 +428,104 @@
     }, 0);
   }
 
+  function normalizeArchiveDate(value) {
+    if (!value) return '';
+    const iso = String(value).match(/^\d{4}-\d{2}-\d{2}$/);
+    if (iso) return iso[0];
+    const m = String(value).match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+    if (m) return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+    return '';
+  }
+
+  function restoreArchiveMeta(record) {
+    const customerEl = document.getElementById('customerName');
+    const numberEl = document.getElementById('offerNumber');
+    const dateEl = document.getElementById('offerDate');
+    const currencyEl = document.getElementById('currency');
+    if (customerEl) customerEl.value = record.customer || '';
+    if (numberEl) numberEl.value = record.quotationNo || '';
+    if (dateEl) dateEl.value = normalizeArchiveDate(record.quotationDate || '');
+    if (currencyEl && record.currency) currencyEl.value = record.currency;
+  }
+
+  function archiveItemsFromWorkbook(record) {
+    try {
+      const wb = XLSX.read(record.data, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      if (!ws) return [];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+      const headerIndex = rows.findIndex(row => row.some(v => normalize(v) === normalize('Part No.')) || row.some(v => normalize(v) === normalize('Model')));
+      if (headerIndex < 0) return [];
+      const headers = rows[headerIndex].map(v => normalize(v));
+      const findCol = names => headers.findIndex(h => names.some(n => h === normalize(n) || h.startsWith(normalize(n))));
+      const cols = {
+        article: findCol(['Part No.','Article']),
+        model: findCol(['Model']),
+        color: findCol(['Colour / RAL','Color / RAL','Colour','Color']),
+        family: findCol(['Family / Group','Family']),
+        qty: findCol(['Qty']),
+        listPrice: findCol(['List Price']),
+        priceListDiscount: findCol(['Discount']),
+        netPrice: findCol(['Net Price']),
+        extraDiscount: findCol(['Second Discount'])
+      };
+      const items = [];
+      for (let r = headerIndex + 1; r < rows.length; r++) {
+        const row = rows[r];
+        const article = cols.article >= 0 ? row[cols.article] : '';
+        const model = cols.model >= 0 ? row[cols.model] : '';
+        if (!article && !model) continue;
+        const num = (idx, fallback=0) => {
+          if (idx < 0) return fallback;
+          const v = Number(row[idx]);
+          return Number.isFinite(v) ? v : fallback;
+        };
+        items.push({
+          uid: `archive-${record.id}-${r}`,
+          listId: 'archive',
+          article: String(article || ''),
+          model: String(model || ''),
+          color: cols.color >= 0 ? String(row[cols.color] || '') : '',
+          family: cols.family >= 0 ? String(row[cols.family] || '') : '',
+          qty: Math.max(1, Math.round(num(cols.qty, 1))),
+          listPrice: num(cols.listPrice, 0),
+          priceListDiscount: num(cols.priceListDiscount, 0) * (num(cols.priceListDiscount, 0) <= 1 ? 100 : 1),
+          netPrice: num(cols.netPrice, 0),
+          extraDiscount: num(cols.extraDiscount, 0) * (num(cols.extraDiscount, 0) <= 1 ? 100 : 1),
+          source: record.filename || 'Archived quotation'
+        });
+      }
+      return items;
+    } catch (err) {
+      console.warn('Archived quotation could not be reconstructed.', err);
+      return [];
+    }
+  }
+
+  async function loadArchiveRecord(id) {
+    const record = await getArchiveRecord(id);
+    if (!record) return;
+
+    let items = Array.isArray(record.offer) ? record.offer.map((item, index) => ({
+      ...item,
+      uid: item.uid || `archive-${record.id}-${index}`
+    })) : [];
+
+    if (!items.length && record.data) items = archiveItemsFromWorkbook(record);
+    if (!items.length) {
+      alert('This archived quotation cannot be loaded back into the editor.');
+      return;
+    }
+
+    state.offer = items;
+    if (record.exportOptions) state.exportOptions = { ...state.exportOptions, ...record.exportOptions };
+    restoreArchiveMeta(record);
+    if (typeof renderOffer === 'function') renderOffer();
+    if (typeof renderResults === 'function') renderResults();
+    if (typeof autoSaveDraft === 'function') autoSaveDraft();
+    document.getElementById('offerCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   function ensureArchiveUi() {
     if (document.getElementById('quotationArchiveCard')) return;
     const offerCard = document.getElementById('offerCard');
@@ -467,6 +565,11 @@
     document.head.appendChild(style);
 
     card.addEventListener('click', async event => {
+      const loadBtn = event.target.closest('[data-archive-load]');
+      if (loadBtn) {
+        await loadArchiveRecord(loadBtn.dataset.archiveLoad);
+        return;
+      }
       const downloadBtn = event.target.closest('[data-archive-download]');
       if (downloadBtn) {
         const record = await getArchiveRecord(downloadBtn.dataset.archiveDownload);
@@ -506,6 +609,7 @@
           <td>${escapeHtml(record.quotationNo || '—')}</td>
           <td>${escapeHtml(total)}</td>
           <td><div class="quotation-archive-actions">
+            <button class="mini-btn" type="button" data-archive-load="${escapeAttr(record.id)}">Load</button>
             <button class="mini-btn" type="button" data-archive-download="${escapeAttr(record.id)}">Download</button>
             <button class="mini-btn danger-text" type="button" data-archive-delete="${escapeAttr(record.id)}">Delete</button>
           </div></td>
@@ -559,6 +663,9 @@
         quotationNo: result.quotationNo || '',
         currency: document.getElementById('currency')?.value || 'EUR',
         total: archiveTotal(),
+        quotationDate: document.getElementById('offerDate')?.value || '',
+        exportOptions: { ...(state.exportOptions || {}) },
+        offer: state.offer.map(item => ({ ...item })),
         filename,
         data
       });
@@ -587,8 +694,8 @@
   function install() {
     lockCurrentVersionBadge();
     const btn = document.getElementById('exportBtn');
-    if (btn && btn.dataset.v46QuotationDesign !== '1') {
-      btn.dataset.v46QuotationDesign = '1';
+    if (btn && btn.dataset.v47QuotationDesign !== '1') {
+      btn.dataset.v47QuotationDesign = '1';
       btn.addEventListener('click', exportSnapOnQuotation, true);
     }
     setTimeout(lockCurrentVersionBadge, 50);
