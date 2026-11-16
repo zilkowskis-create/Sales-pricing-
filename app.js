@@ -873,8 +873,19 @@ async function applyMapping() {
   refreshAll();
 }
 
+function isGlobalSearchSheet(list) {
+  if (!list) return false;
+  if (list.enabled) return true;
+  const name = normalize(list.sheetName || '');
+  return name === normalize('OEM') || name.includes('accessor');
+}
+
 function allSearchItems() {
-  return state.priceLists.filter(x => x.enabled).flatMap(x => x.items);
+  const globalSearch = !state.searchSettings.source;
+  const lists = globalSearch
+    ? state.priceLists.filter(isGlobalSearchSheet)
+    : state.priceLists.filter(x => x.enabled);
+  return lists.flatMap(x => x.items);
 }
 
 function getSearchMatches() {
