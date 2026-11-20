@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.38';
+  const UI_VERSION='2026.09.17.39';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -81,7 +81,7 @@
   }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026112038&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026112039&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
@@ -791,7 +791,6 @@
               </div>
               <div class="reportBars">
                 ${reportBar('Sales MTD',vals.sales,vals.target,fmt)}
-                ${reportBar('Forecast',vals.forecast,vals.target,fmt)}
               </div>
             </div>
             <div class="reportPeriodCard">
@@ -803,7 +802,6 @@
               </div>
               <div class="reportBars">
                 ${reportBar('Sales YTD',vals.ytd,vals.ytdTarget,fmt)}
-                ${reportBar('YTD Target',vals.ytdTarget,vals.ytdTarget,fmt)}
               </div>
             </div>
           </div>
