@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.36';
+  const UI_VERSION='2026.09.17.37';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -81,7 +81,7 @@
   }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026112036&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026112037&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
@@ -224,7 +224,7 @@
 
     function parseUndercarBrandRows(parsed){
       const rows=parsed?.rows||[];
-      const managers=new Set(['Bernardi F','Zilkowski S.','Mindaugas Deikus','Sollano R.','Sollano R']);
+      const managers=new Set(['Bernardi F','Losi L','Zilkowski S.','Mindaugas Deikus','Sollano R.','Sollano R']);
       const scope=rows.filter(r=>String(r.salesOffice||'').trim()==='Zilkowski S.'&&managers.has(String(r.salesManager||'').trim()));
       let currentYM='';
       for(const r of scope){
