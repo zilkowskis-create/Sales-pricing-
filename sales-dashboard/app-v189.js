@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.35';
+  const UI_VERSION='2026.09.17.36';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -81,7 +81,7 @@
   }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026112035&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026112036&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
@@ -744,6 +744,114 @@
     const sleep=ms=>new Promise(r=>setTimeout(r,ms));
     function moneyText(el){return el?.textContent?.trim()||'—';}
 
+    function reportMoneyNumber(text){
+      const s=String(text||'').replace(/\s/g,'').replace(/[€$]/g,'').replace(/\./g,'').replace(',','.').replace(/[^0-9+\-.]/g,'');
+      const n=Number(s);
+      return Number.isFinite(n)?n:0;
+    }
+    function reportPct(actual,target){
+      if(!target)return 0;
+      return Math.max(0,Math.min(120,(actual/target)*100));
+    }
+    function reportBar(label,value,target,fmt){
+      const pct=reportPct(value,target);
+      const displayPct=target?Math.round((value/target)*100):0;
+      return `<div class="reportBarRow"><div class="reportBarLabel">${label}</div><div class="reportBarTrack"><div class="reportBarFill ${displayPct>=100?'goodFill':''}" style="width:${Math.min(100,pct)}%"></div></div><div class="reportBarValue">${target?displayPct+'%':'—'}</div><div class="reportBarAmount">${fmt(value)}</div></div>`;
+    }
+    function reportKpi(label,value,fmt,cls=''){
+      return `<div class="reportKpi ${cls}"><div class="reportKpiLabel">${label}</div><div class="reportKpiValue">${fmt(value)}</div></div>`;
+    }
+    function reportMetricRow(label,value,fmt,cls=''){
+      return `<div class="reportMetricRow"><span>${label}</span><b class="${cls}">${fmt(value)}</b></div>`;
+    }
+    function signedFmt(value,fmt){return (value>=0?'+':'')+fmt(value);}
+    function buildUndercarExecutive(manager,vals,gm){
+      const fmt=v=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v);
+      const monthGap=vals.forecast-vals.target;
+      const ytdGap=vals.ytd-vals.ytdTarget;
+      return `
+        <section class="reportSection executiveReportBlock">
+          <div class="reportSectionHead"><h2>Undercar</h2><span>EUR · ${gm}</span></div>
+          <div class="reportKpiGrid">
+            ${reportKpi('Sales MTD',vals.sales,fmt)}
+            ${reportKpi('Forecast',vals.forecast,fmt)}
+            ${reportKpi('MTD Target',vals.target,fmt)}
+            ${reportKpi('Gap',monthGap,fmt,monthGap>=0?'goodText':'badText')}
+            ${reportKpi('Sales YTD',vals.ytd,fmt)}
+          </div>
+          <div class="reportPeriodGrid">
+            <div class="reportPeriodCard">
+              <div class="reportPeriodHead">MONTH</div>
+              <div class="reportMetricList">
+                ${reportMetricRow('Sales MTD',vals.sales,fmt)}
+                ${reportMetricRow('Backlog Ord1',vals.backlog,fmt)}
+                ${reportMetricRow('Forecast',vals.forecast,fmt)}
+                ${reportMetricRow('MTD Target',vals.target,fmt)}
+                ${reportMetricRow('Gap',monthGap,v=>signedFmt(v,fmt),monthGap>=0?'goodText':'badText')}
+              </div>
+              <div class="reportBars">
+                ${reportBar('Sales MTD',vals.sales,vals.target,fmt)}
+                ${reportBar('Forecast',vals.forecast,vals.target,fmt)}
+              </div>
+            </div>
+            <div class="reportPeriodCard">
+              <div class="reportPeriodHead">YEAR</div>
+              <div class="reportMetricList">
+                ${reportMetricRow('Sales YTD',vals.ytd,fmt)}
+                ${reportMetricRow('YTD Target',vals.ytdTarget,fmt)}
+                ${reportMetricRow('YTD Gap',ytdGap,v=>signedFmt(v,fmt),ytdGap>=0?'goodText':'badText')}
+              </div>
+              <div class="reportBars">
+                ${reportBar('Sales YTD',vals.ytd,vals.ytdTarget,fmt)}
+                ${reportBar('YTD Target',vals.ytdTarget,vals.ytdTarget,fmt)}
+              </div>
+            </div>
+          </div>
+        </section>`;
+    }
+    function buildCollisionExecutive(manager,vals){
+      const fmt=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(v);
+      return `
+        <section class="reportSection executiveReportBlock">
+          <div class="reportSectionHead"><h2>Car-O-Liner / Blackhawk / JOSAM</h2><span>USD</span></div>
+          <div class="reportKpiGrid">
+            ${reportKpi('Actual',vals.actual,fmt)}
+            ${reportKpi('Forecast incl. Orders',vals.forecast,fmt)}
+            ${reportKpi('Month AOP',vals.monthTarget,fmt)}
+            ${reportKpi('Gap vs AOP',vals.monthGap,v=>signedFmt(v,fmt),vals.monthGap>=0?'goodText':'badText')}
+            ${reportKpi('YTD Forecast',vals.ytdForecast,fmt)}
+          </div>
+          <div class="reportPeriodGrid">
+            <div class="reportPeriodCard">
+              <div class="reportPeriodHead">MONTH</div>
+              <div class="reportMetricList">
+                ${reportMetricRow('Actual',vals.actual,fmt)}
+                ${reportMetricRow('Orders',vals.orders,fmt)}
+                ${reportMetricRow('Forecast incl. Orders',vals.forecast,fmt)}
+                ${reportMetricRow('Month AOP',vals.monthTarget,fmt)}
+                ${reportMetricRow('Gap vs AOP',vals.monthGap,v=>signedFmt(v,fmt),vals.monthGap>=0?'goodText':'badText')}
+              </div>
+              <div class="reportBars">
+                ${reportBar('Actual',vals.actual,vals.monthTarget,fmt)}
+                ${reportBar('Forecast incl. Orders',vals.forecast,vals.monthTarget,fmt)}
+              </div>
+            </div>
+            <div class="reportPeriodCard">
+              <div class="reportPeriodHead">YEAR</div>
+              <div class="reportMetricList">
+                ${reportMetricRow('YTD Forecast',vals.ytdForecast,fmt)}
+                ${reportMetricRow('YTD AOP',vals.ytdTarget,fmt)}
+                ${reportMetricRow('YTD Gap',vals.ytdGap,v=>signedFmt(v,fmt),vals.ytdGap>=0?'goodText':'badText')}
+              </div>
+              <div class="reportBars">
+                ${reportBar('YTD Forecast',vals.ytdForecast,vals.ytdTarget,fmt)}
+                ${reportBar('YTD AOP',vals.ytdTarget,vals.ytdTarget,fmt)}
+              </div>
+            </div>
+          </div>
+        </section>`;
+    }
+
     async function captureUndercarReport(manager){
       const select=document.getElementById('manager');
       if(!select)return '<div class="card panel"><h2>Undercar</h2><div class="muted">Undercar view not available.</div></div>';
@@ -753,18 +861,28 @@
       select.disabled=false;
       select.value=option.value;
       select.dispatchEvent(new Event('change',{bubbles:true}));
-      await sleep(60);
-      const kpis=document.getElementById('kpis')?.cloneNode(true);
-      const table=document.getElementById('countryTable')?.cloneNode(true);
+      await sleep(80);
+      const sum=[...document.querySelectorAll('#countryBody tr.mgrRow')].find(tr=>(tr.cells?.[0]?.textContent||'').trim()===manager);
       const gmCard=[...document.querySelectorAll('#cards .managerGoal')].find(x=>(x.querySelector('.managerName b')?.textContent||'').trim()===manager);
       const gm=gmCard?.querySelector('.managerName span')?.textContent||'GM MTD —';
-      let html=`<section class="reportSection"><div class="reportSectionHead"><h2>Undercar</h2><span>EUR · ${gm}</span></div>`;
-      if(kpis)html+=kpis.outerHTML;
-      if(table)html+=`<div class="card panel"><h3>Country performance</h3><div class="tableWrap">${table.outerHTML}</div></div>`;
-      html+='</section>';
+      let html='';
+      if(sum&&sum.cells.length>=10){
+        const vals={
+          sales:reportMoneyNumber(sum.cells[2]?.textContent),
+          backlog:reportMoneyNumber(sum.cells[3]?.textContent),
+          forecast:reportMoneyNumber(sum.cells[4]?.textContent),
+          target:reportMoneyNumber(sum.cells[5]?.textContent),
+          ytd:reportMoneyNumber(sum.cells[7]?.textContent),
+          ytdTarget:reportMoneyNumber(sum.cells[8]?.textContent)
+        };
+        html=buildUndercarExecutive(manager,vals,gm);
+      }else{
+        html='<div class="card panel"><h2>Undercar</h2><div class="muted">No Undercar data available for '+manager+'.</div></div>';
+      }
+      const table=document.getElementById('countryTable')?.cloneNode(true);
+      if(table)html+=`<div class="card panel reportDetailTable"><h3>Country performance</h3><div class="tableWrap">${table.outerHTML}</div></div>`;
       select.value=old;
       select.dispatchEvent(new Event('change',{bubbles:true}));
-      if(employeeProfile)select.disabled=true;
       return html;
     }
 
@@ -777,18 +895,36 @@
       select.disabled=false;
       select.value=option.value;
       select.dispatchEvent(new Event('change',{bubbles:true}));
-      await sleep(180);
-      const kpis=document.getElementById('collisionDetailKpis')?.cloneNode(true);
+      await sleep(220);
+
+      const box=document.getElementById('collisionDetailKpis');
+      const goalBoxes=[...(box?.querySelectorAll('.goalBox')||[])];
+      const byTitle=title=>goalBoxes.find(g=>(g.querySelector('.goalTitle')?.textContent||'').trim().toLowerCase()===title.toLowerCase());
+      const actualBox=byTitle('Actual');
+      const forecastBox=byTitle('Forecast incl. Orders');
+      const ytdBox=byTitle('YTD Forecast');
+
+      const mainVal=g=>reportMoneyNumber(g?.querySelector('.goalMain span')?.textContent);
+      const targetVal=g=>reportMoneyNumber(g?.querySelector('.goalMain small')?.textContent);
+      const strongVal=g=>reportMoneyNumber(g?.querySelector('.goalMeta strong')?.textContent);
+      const orders=reportMoneyNumber(forecastBox?.querySelector('.goalSub b')?.textContent);
+      const vals={
+        actual:mainVal(actualBox),
+        forecast:mainVal(forecastBox),
+        monthTarget:targetVal(actualBox)||targetVal(forecastBox),
+        monthGap:strongVal(forecastBox),
+        orders,
+        ytdForecast:mainVal(ytdBox),
+        ytdTarget:targetVal(ytdBox),
+        ytdGap:strongVal(ytdBox)
+      };
+      let html=buildCollisionExecutive(manager,vals);
       const brand=document.getElementById('collisionDetailBrandTable')?.cloneNode(true);
       const country=document.getElementById('collisionCountryCompactTable')?.cloneNode(true)||document.getElementById('collisionDetailTable')?.cloneNode(true);
-      let html='<section class="reportSection"><div class="reportSectionHead"><h2>Car-O-Liner / Blackhawk / JOSAM</h2><span>USD</span></div>';
-      if(kpis)html+=kpis.outerHTML;
-      if(brand)html+=`<div class="card panel"><h3>Brand performance</h3><div class="tableWrap">${brand.outerHTML}</div></div>`;
-      if(country)html+=`<div class="card panel"><h3>Country performance</h3><div class="tableWrap">${country.outerHTML}</div></div>`;
-      html+='</section>';
+      if(brand)html+=`<div class="card panel reportDetailTable"><h3>Brand performance</h3><div class="tableWrap">${brand.outerHTML}</div></div>`;
+      if(country)html+=`<div class="card panel reportDetailTable"><h3>Country performance</h3><div class="tableWrap">${country.outerHTML}</div></div>`;
       select.value=old;
       select.dispatchEvent(new Event('change',{bubbles:true}));
-      if(employeeProfile)select.disabled=true;
       return html;
     }
 
@@ -823,6 +959,28 @@
       .employeeTab:hover{background:#f4f5f6}
       .employeeTab.active{background:#17191d;color:#fff;border-color:#17191d}
       .teamPersonHeader{margin-bottom:2px}
+      .reportKpiGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+      .reportKpi{background:#fff;border:1px solid #dfe3e8;border-radius:10px;padding:13px 14px;min-width:0}
+      .reportKpiLabel{font-size:10px;font-weight:850;color:#5f6670;text-transform:uppercase;letter-spacing:.035em}
+      .reportKpiValue{font-size:22px;font-weight:900;margin-top:5px;white-space:nowrap}
+      .reportPeriodGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+      .reportPeriodCard{background:#fff;border:1px solid #dfe3e8;border-radius:11px;overflow:hidden}
+      .reportPeriodHead{background:#17191d;color:#fff;padding:10px 13px;font-size:12px;font-weight:900;letter-spacing:.055em}
+      .reportMetricList{padding:9px 12px 3px}
+      .reportMetricRow{display:flex;justify-content:space-between;gap:12px;padding:7px 2px;border-bottom:1px solid #eceff2;font-size:11px}
+      .reportMetricRow:last-child{border-bottom:0}
+      .reportMetricRow b{font-variant-numeric:tabular-nums}
+      .reportBars{padding:9px 12px 13px;display:grid;gap:8px;border-top:1px solid #edf0f2}
+      .reportBarRow{display:grid;grid-template-columns:120px minmax(120px,1fr) 42px 105px;align-items:center;gap:8px}
+      .reportBarLabel{font-size:10px;font-weight:850}
+      .reportBarTrack{height:10px;background:#e8ebee;border-radius:99px;overflow:hidden}
+      .reportBarFill{height:100%;background:#52606d;border-radius:99px}
+      .reportBarFill.goodFill{background:#1f7a3f}
+      .reportBarValue,.reportBarAmount{text-align:right;font-size:10px;font-weight:850;font-variant-numeric:tabular-nums}
+      .goodText{color:#138a36!important}.badText{color:#c62828!important}
+      .reportDetailTable{margin-top:10px}
+      @media(max-width:950px){.reportKpiGrid{grid-template-columns:repeat(2,1fr)}.reportPeriodGrid{grid-template-columns:1fr}}
+      @media(max-width:620px){.reportBarRow{grid-template-columns:90px 1fr 38px}.reportBarAmount{display:none}.reportKpiGrid{grid-template-columns:1fr 1fr}.reportKpiValue{font-size:18px}}
       @media print{
         body *{visibility:hidden!important}
         #report,#report *{visibility:visible!important}
