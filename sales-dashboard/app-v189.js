@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.37';
+  const UI_VERSION='2026.09.17.38';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -81,7 +81,7 @@
   }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026112037&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026112038&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
@@ -867,10 +867,12 @@
       const gm=gmCard?.querySelector('.managerName span')?.textContent||'GM MTD —';
       let html='';
       if(sum&&sum.cells.length>=10){
+        const sales=reportMoneyNumber(sum.cells[2]?.textContent);
+        const backlog=reportMoneyNumber(sum.cells[3]?.textContent);
         const vals={
-          sales:reportMoneyNumber(sum.cells[2]?.textContent),
-          backlog:reportMoneyNumber(sum.cells[3]?.textContent),
-          forecast:reportMoneyNumber(sum.cells[4]?.textContent),
+          sales,
+          backlog,
+          forecast:sales+backlog,
           target:reportMoneyNumber(sum.cells[5]?.textContent),
           ytd:reportMoneyNumber(sum.cells[7]?.textContent),
           ytdTarget:reportMoneyNumber(sum.cells[8]?.textContent)
