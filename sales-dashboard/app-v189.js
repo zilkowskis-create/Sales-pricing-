@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.34';
+  const UI_VERSION='2026.09.17.35';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -81,7 +81,7 @@
   }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026112034&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026112035&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
@@ -579,8 +579,8 @@
       mindaugas:{name:'Mindaugas Deikus',undercar:true,collision:true,start:'team'},
       ruslan:{name:'Ruslan Sollano',undercar:true,collision:true,start:'team'}
     };
-    const employeeKey=(new URL(location.href)).searchParams.get('employee');
-    const employeeProfile=employeeProfiles[String(employeeKey||'').toLowerCase()]||null;
+    const employeeKey=null;
+    const employeeProfile=null;
 
     function setSelectValue(id,value,lock=false){
       const el=document.getElementById(id);
@@ -646,7 +646,7 @@
       const btn=document.createElement('button');
       btn.className='tab';
       btn.dataset.tab='report';
-      btn.textContent=employeeProfile?'My Report':'Manager Report';
+      btn.textContent='Manager Report';
       nav.appendChild(btn);
 
       const section=document.createElement('section');
@@ -655,13 +655,11 @@
       section.innerHTML=`
         <div class="toolbar reportToolbar">
           <div>
-            <b>${employeeProfile?'My Report':'Manager Report'}</b>
+            <b>Manager Report</b>
             <div class="muted">Current dashboard data · printable summary</div>
           </div>
           <div class="filters">
-            <select id="reportManager">${employeeProfile
-              ? `<option>${employeeProfile.name}</option>`
-              : '<option>Lorenzo Losi</option><option>Michal Adamiec</option><option>Mindaugas Deikus</option><option>Ruslan Sollano</option>'}</select>
+            <select id="reportManager"><option>Lorenzo Losi</option><option>Michal Adamiec</option><option>Mindaugas Deikus</option><option>Ruslan Sollano</option></select>
             <button id="buildReportBtn" class="btn">Build report</button>
             <button id="printReportBtn" class="btn red">Print / Save PDF</button>
           </div>
@@ -678,6 +676,69 @@
       });
       document.getElementById('buildReportBtn')?.addEventListener('click',buildManagerReport);
       document.getElementById('printReportBtn')?.addEventListener('click',()=>window.print());
+    }
+
+    function addTeamDashboardTab(){
+      const nav=document.querySelector('nav.tabs');
+      const main=document.querySelector('main.wrap');
+      if(!nav||!main||document.getElementById('teamDashboard'))return;
+
+      const btn=document.createElement('button');
+      btn.className='tab';
+      btn.dataset.tab='teamDashboard';
+      btn.textContent='Team Dashboard';
+      nav.appendChild(btn);
+
+      const section=document.createElement('section');
+      section.id='teamDashboard';
+      section.className='tabpane';
+      section.innerHTML=`
+        <div class="toolbar teamDashboardToolbar">
+          <div>
+            <b>Team Dashboard</b>
+            <div class="muted">Select a person to show the relevant sales areas.</div>
+          </div>
+          <div class="employeeTabs">
+            <button type="button" class="employeeTab active" data-employee="lorenzo">Lorenzo</button>
+            <button type="button" class="employeeTab" data-employee="michal">Michal</button>
+            <button type="button" class="employeeTab" data-employee="mindaugas">Mindaugas</button>
+            <button type="button" class="employeeTab" data-employee="ruslan">Ruslan</button>
+          </div>
+        </div>
+        <div id="teamDashboardContent" class="reportContent">
+          <div class="card panel"><div class="muted">Loading Lorenzo…</div></div>
+        </div>`;
+      main.appendChild(section);
+
+      btn.addEventListener('click',()=>{
+        document.querySelectorAll('.tab,.tabpane').forEach(x=>x.classList.remove('active'));
+        btn.classList.add('active');
+        section.classList.add('active');
+        const active=section.querySelector('.employeeTab.active')?.dataset.employee||'lorenzo';
+        buildTeamDashboard(active);
+      });
+
+      section.querySelectorAll('.employeeTab').forEach(b=>b.addEventListener('click',()=>{
+        section.querySelectorAll('.employeeTab').forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');
+        buildTeamDashboard(b.dataset.employee);
+      }));
+    }
+
+    async function buildTeamDashboard(key){
+      const profile=employeeProfiles[key];
+      const out=document.getElementById('teamDashboardContent');
+      if(!profile||!out)return;
+      out.innerHTML='<div class="card panel"><div class="muted">Building '+profile.name+' view…</div></div>';
+      const parts=[];
+      if(profile.undercar)parts.push(await captureUndercarReport(profile.name));
+      if(profile.collision)parts.push(await captureCollisionReport(profile.name));
+      out.innerHTML=`
+        <div class="reportHeader teamPersonHeader">
+          <div><h1>${profile.name}</h1><p>${profile.undercar&&profile.collision?'Undercar · Car-O-Liner · Blackhawk · JOSAM':profile.undercar?'Undercar':'Car-O-Liner · Blackhawk · JOSAM'}</p></div>
+          <div class="reportDate">${new Intl.DateTimeFormat('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date())}</div>
+        </div>
+        ${parts.join('')||'<div class="card panel">No data available.</div>'}`;
     }
 
     const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -757,7 +818,11 @@
       .reportSection{display:grid;gap:10px}
       .reportSectionHead{display:flex;justify-content:space-between;align-items:center;padding:2px 2px}
       .reportSectionHead h2{margin:0}.reportSectionHead span{font-size:10px;color:#727780;font-weight:800}
-      .employeeView #updateBtn{display:none!important}
+      .employeeTabs{display:flex;gap:6px;flex-wrap:wrap}
+      .employeeTab{border:1px solid #d7dade;background:#fff;color:#222;border-radius:7px;padding:7px 12px;font-size:11px;font-weight:800;cursor:pointer}
+      .employeeTab:hover{background:#f4f5f6}
+      .employeeTab.active{background:#17191d;color:#fff;border-color:#17191d}
+      .teamPersonHeader{margin-bottom:2px}
       @media print{
         body *{visibility:hidden!important}
         #report,#report *{visibility:visible!important}
@@ -771,9 +836,8 @@
       }`;
     document.head.appendChild(reportStyle);
 
+    addTeamDashboardTab();
     addReportTab();
-    setTimeout(applyEmployeeView,500);
-    setTimeout(()=>{if(employeeProfile)buildManagerReport();},1400);
 
     const undercar=document.getElementById('file');
     const collision=document.getElementById('collisionFile');
