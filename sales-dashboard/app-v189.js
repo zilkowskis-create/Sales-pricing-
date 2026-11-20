@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.32';
+  const UI_VERSION='2026.09.17.33';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -81,7 +81,7 @@
   }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026102732&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026112033&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
