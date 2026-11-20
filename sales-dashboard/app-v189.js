@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.33';
+  const UI_VERSION='2026.09.17.34';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -81,7 +81,7 @@
   }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026112033&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026112034&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
@@ -570,6 +570,210 @@
     setTimeout(scheduleTotalOverview,350);
     setTimeout(scheduleTotalOverview,1300);
     refreshUsdEurRate();
+
+
+    // Employee views + printable manager report.
+    const employeeProfiles={
+      lorenzo:{name:'Lorenzo Losi',undercar:true,collision:false,start:'team'},
+      michal:{name:'Michal Adamiec',undercar:false,collision:true,start:'collisionDetail'},
+      mindaugas:{name:'Mindaugas Deikus',undercar:true,collision:true,start:'team'},
+      ruslan:{name:'Ruslan Sollano',undercar:true,collision:true,start:'team'}
+    };
+    const employeeKey=(new URL(location.href)).searchParams.get('employee');
+    const employeeProfile=employeeProfiles[String(employeeKey||'').toLowerCase()]||null;
+
+    function setSelectValue(id,value,lock=false){
+      const el=document.getElementById(id);
+      if(!el)return;
+      const apply=()=>{
+        const opt=[...el.options].find(o=>o.value===value||o.textContent.trim()===value);
+        if(opt){
+          el.value=opt.value;
+          el.dispatchEvent(new Event('change',{bubbles:true}));
+          if(lock)el.disabled=true;
+          return true;
+        }
+        return false;
+      };
+      if(apply())return;
+      let tries=0;
+      const timer=setInterval(()=>{tries++;if(apply()||tries>20)clearInterval(timer);},150);
+    }
+
+    function activateTab(tabId){
+      const btn=document.querySelector('.tab[data-tab="'+tabId+'"]');
+      if(btn){btn.click();return;}
+      document.querySelectorAll('.tab,.tabpane').forEach(x=>x.classList.remove('active'));
+      document.getElementById(tabId)?.classList.add('active');
+    }
+
+    function applyEmployeeView(){
+      if(!employeeProfile)return;
+      document.body.classList.add('employeeView');
+      document.body.dataset.employee=employeeKey;
+      const allowed=new Set(['report']);
+      if(employeeProfile.undercar){allowed.add('team');allowed.add('customers');allowed.add('journal');}
+      if(employeeProfile.collision)allowed.add('collisionDetail');
+      document.querySelectorAll('.tab').forEach(btn=>{
+        const id=btn.dataset.tab||'';
+        if(!allowed.has(id))btn.style.display='none';
+      });
+      const undercarLoad=document.querySelector('button[onclick*="getElementById(\'file\')"]');
+      if(undercarLoad&&!employeeProfile.undercar)undercarLoad.style.display='none';
+      const collisionLoad=document.getElementById('collisionLoad');
+      if(collisionLoad&&!employeeProfile.collision)collisionLoad.style.display='none';
+      if(!employeeProfile.undercar){
+        document.getElementById('file')?.setAttribute('disabled','disabled');
+      }
+      if(!employeeProfile.collision){
+        document.getElementById('collisionFile')?.setAttribute('disabled','disabled');
+      }
+      if(employeeProfile.undercar){
+        setSelectValue('manager',employeeProfile.name,true);
+        setSelectValue('customerManager',employeeProfile.name,true);
+        setSelectValue('journalManager',employeeProfile.name,true);
+      }
+      if(employeeProfile.collision)setSelectValue('collisionManagerDetail',employeeProfile.name,true);
+      const h1=document.querySelector('header h1');
+      if(h1)h1.textContent='East Europe Sales Dashboard · '+employeeProfile.name;
+      activateTab(employeeProfile.start);
+    }
+
+    function addReportTab(){
+      const nav=document.querySelector('nav.tabs');
+      const main=document.querySelector('main.wrap');
+      if(!nav||!main||document.getElementById('report'))return;
+      const btn=document.createElement('button');
+      btn.className='tab';
+      btn.dataset.tab='report';
+      btn.textContent=employeeProfile?'My Report':'Manager Report';
+      nav.appendChild(btn);
+
+      const section=document.createElement('section');
+      section.id='report';
+      section.className='tabpane';
+      section.innerHTML=`
+        <div class="toolbar reportToolbar">
+          <div>
+            <b>${employeeProfile?'My Report':'Manager Report'}</b>
+            <div class="muted">Current dashboard data · printable summary</div>
+          </div>
+          <div class="filters">
+            <select id="reportManager">${employeeProfile
+              ? `<option>${employeeProfile.name}</option>`
+              : '<option>Lorenzo Losi</option><option>Michal Adamiec</option><option>Mindaugas Deikus</option><option>Ruslan Sollano</option>'}</select>
+            <button id="buildReportBtn" class="btn">Build report</button>
+            <button id="printReportBtn" class="btn red">Print / Save PDF</button>
+          </div>
+        </div>
+        <div id="reportContent" class="reportContent">
+          <div class="card panel"><div class="muted">Select a manager and click Build report.</div></div>
+        </div>`;
+      main.appendChild(section);
+
+      btn.addEventListener('click',()=>{
+        document.querySelectorAll('.tab,.tabpane').forEach(x=>x.classList.remove('active'));
+        btn.classList.add('active');
+        section.classList.add('active');
+      });
+      document.getElementById('buildReportBtn')?.addEventListener('click',buildManagerReport);
+      document.getElementById('printReportBtn')?.addEventListener('click',()=>window.print());
+    }
+
+    const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+    function moneyText(el){return el?.textContent?.trim()||'—';}
+
+    async function captureUndercarReport(manager){
+      const select=document.getElementById('manager');
+      if(!select)return '<div class="card panel"><h2>Undercar</h2><div class="muted">Undercar view not available.</div></div>';
+      const old=select.value;
+      const option=[...select.options].find(o=>o.value===manager||o.textContent.trim()===manager);
+      if(!option)return '<div class="card panel"><h2>Undercar</h2><div class="muted">No Undercar data for '+manager+'.</div></div>';
+      select.disabled=false;
+      select.value=option.value;
+      select.dispatchEvent(new Event('change',{bubbles:true}));
+      await sleep(60);
+      const kpis=document.getElementById('kpis')?.cloneNode(true);
+      const table=document.getElementById('countryTable')?.cloneNode(true);
+      const gmCard=[...document.querySelectorAll('#cards .managerGoal')].find(x=>(x.querySelector('.managerName b')?.textContent||'').trim()===manager);
+      const gm=gmCard?.querySelector('.managerName span')?.textContent||'GM MTD —';
+      let html=`<section class="reportSection"><div class="reportSectionHead"><h2>Undercar</h2><span>EUR · ${gm}</span></div>`;
+      if(kpis)html+=kpis.outerHTML;
+      if(table)html+=`<div class="card panel"><h3>Country performance</h3><div class="tableWrap">${table.outerHTML}</div></div>`;
+      html+='</section>';
+      select.value=old;
+      select.dispatchEvent(new Event('change',{bubbles:true}));
+      if(employeeProfile)select.disabled=true;
+      return html;
+    }
+
+    async function captureCollisionReport(manager){
+      const select=document.getElementById('collisionManagerDetail');
+      if(!select)return '<div class="card panel"><h2>Collision</h2><div class="muted">Collision view not available.</div></div>';
+      const old=select.value;
+      const option=[...select.options].find(o=>o.value===manager||o.textContent.trim()===manager);
+      if(!option)return '<div class="card panel"><h2>Collision</h2><div class="muted">No Collision data for '+manager+'.</div></div>';
+      select.disabled=false;
+      select.value=option.value;
+      select.dispatchEvent(new Event('change',{bubbles:true}));
+      await sleep(180);
+      const kpis=document.getElementById('collisionDetailKpis')?.cloneNode(true);
+      const brand=document.getElementById('collisionDetailBrandTable')?.cloneNode(true);
+      const country=document.getElementById('collisionCountryCompactTable')?.cloneNode(true)||document.getElementById('collisionDetailTable')?.cloneNode(true);
+      let html='<section class="reportSection"><div class="reportSectionHead"><h2>Car-O-Liner / Blackhawk / JOSAM</h2><span>USD</span></div>';
+      if(kpis)html+=kpis.outerHTML;
+      if(brand)html+=`<div class="card panel"><h3>Brand performance</h3><div class="tableWrap">${brand.outerHTML}</div></div>`;
+      if(country)html+=`<div class="card panel"><h3>Country performance</h3><div class="tableWrap">${country.outerHTML}</div></div>`;
+      html+='</section>';
+      select.value=old;
+      select.dispatchEvent(new Event('change',{bubbles:true}));
+      if(employeeProfile)select.disabled=true;
+      return html;
+    }
+
+    async function buildManagerReport(){
+      const manager=document.getElementById('reportManager')?.value||employeeProfile?.name;
+      const out=document.getElementById('reportContent');
+      if(!manager||!out)return;
+      out.innerHTML='<div class="card panel"><div class="muted">Building report…</div></div>';
+      const profile=Object.values(employeeProfiles).find(p=>p.name===manager);
+      const parts=[];
+      if(profile?.undercar)parts.push(await captureUndercarReport(manager));
+      if(profile?.collision)parts.push(await captureCollisionReport(manager));
+      out.innerHTML=`
+        <div class="reportHeader">
+          <div><h1>${manager}</h1><p>East Europe Sales Report</p></div>
+          <div class="reportDate">${new Intl.DateTimeFormat('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date())}</div>
+        </div>
+        ${parts.join('')||'<div class="card panel">No report data available.</div>'}`;
+    }
+
+    const reportStyle=document.createElement('style');
+    reportStyle.textContent=`
+      .reportContent{display:grid;gap:12px}
+      .reportHeader{display:flex;justify-content:space-between;align-items:flex-end;background:#17191d;color:#fff;border-radius:11px;padding:18px 20px}
+      .reportHeader h1{margin:0;font-size:24px}.reportHeader p{margin:3px 0 0;color:#c9cdd3}
+      .reportDate{font-weight:800}
+      .reportSection{display:grid;gap:10px}
+      .reportSectionHead{display:flex;justify-content:space-between;align-items:center;padding:2px 2px}
+      .reportSectionHead h2{margin:0}.reportSectionHead span{font-size:10px;color:#727780;font-weight:800}
+      .employeeView #updateBtn{display:none!important}
+      @media print{
+        body *{visibility:hidden!important}
+        #report,#report *{visibility:visible!important}
+        #report{position:absolute;left:0;top:0;width:100%;padding:0!important}
+        #report .reportToolbar{display:none!important}
+        #report .tabpane{display:block!important}
+        #report .card,#report .goalSection{box-shadow:none!important;break-inside:avoid}
+        #report .tableWrap{overflow:visible!important}
+        #report table{font-size:9px!important;min-width:0!important;width:100%!important}
+        @page{size:A4 landscape;margin:10mm}
+      }`;
+    document.head.appendChild(reportStyle);
+
+    addReportTab();
+    setTimeout(applyEmployeeView,500);
+    setTimeout(()=>{if(employeeProfile)buildManagerReport();},1400);
 
     const undercar=document.getElementById('file');
     const collision=document.getElementById('collisionFile');
