@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.39';
+  const UI_VERSION='2026.09.17.40';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -81,7 +81,7 @@
   }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026112039&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026112040&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
@@ -886,6 +886,31 @@
       return html;
     }
 
+    async function captureUndercarDetailReport(manager){
+      const select=document.getElementById('manager');
+      if(!select)return '<div class="card panel"><h2>Undercar</h2><div class="muted">Undercar view not available.</div></div>';
+      const old=select.value;
+      const option=[...select.options].find(o=>o.value===manager||o.textContent.trim()===manager);
+      if(!option)return '<div class="card panel"><h2>Undercar</h2><div class="muted">No Undercar data for '+manager+'.</div></div>';
+      select.value=option.value;
+      select.dispatchEvent(new Event('change',{bubbles:true}));
+      await sleep(80);
+
+      const kpis=document.getElementById('kpis')?.cloneNode(true);
+      const cards=document.getElementById('cards')?.cloneNode(true);
+      const table=document.getElementById('countryTable')?.cloneNode(true);
+
+      let html='<section class="reportSection undercarDetailReport"><div class="reportSectionHead"><h2>Undercar</h2><span>Same view as Undercar Detail</span></div>';
+      if(kpis)html+=kpis.outerHTML;
+      if(cards)html+=cards.outerHTML;
+      if(table)html+=`<div class="card panel reportDetailTable"><h2>Country performance</h2><p>Monthly target = Plan · Forecast = Sales MTD + Backlog Ord1 · Annual target = Sales PLAN YTD.</p><div class="tableWrap">${table.outerHTML}</div></div>`;
+      html+='</section>';
+
+      select.value=old;
+      select.dispatchEvent(new Event('change',{bubbles:true}));
+      return html;
+    }
+
     async function captureCollisionReport(manager){
       const select=document.getElementById('collisionManagerDetail');
       if(!select)return '<div class="card panel"><h2>Collision</h2><div class="muted">Collision view not available.</div></div>';
@@ -935,7 +960,7 @@
       out.innerHTML='<div class="card panel"><div class="muted">Building report…</div></div>';
       const profile=Object.values(employeeProfiles).find(p=>p.name===manager);
       const parts=[];
-      if(profile?.undercar)parts.push(await captureUndercarReport(manager));
+      if(profile?.undercar)parts.push(await captureUndercarDetailReport(manager));
       if(profile?.collision)parts.push(await captureCollisionReport(manager));
       out.innerHTML=`
         <div class="reportHeader">
