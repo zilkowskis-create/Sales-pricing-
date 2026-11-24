@@ -11,7 +11,7 @@
       ["const keep = new Set(['Bernardi F', 'Mindaugas Deikus', 'Sollano R.']);","const keep = new Set(['Bernardi F', 'Losi L', 'Mindaugas Deikus', 'Sollano R.']);"],
       ["const fields = {oe:'Order_entered',mtd:'Sales MTD - invoiced',o1:'Backlog - ord1',plan:'Plan',next:'Sales PLAN Next Month',o2:'Backlog next month - ord 2',ytd:'Somma di Sales YTD €',pytd:'Sales PLAN YTD'};","const fields = {oe:'Order_entered',mtd:'Sales MTD - invoiced',o1:'Backlog - ord1',est:'Sales Estimate Month [inv+ord1]',plan:'Plan',next:'Sales PLAN Next Month',o2:'Backlog next month - ord 2',ytd:'Somma di Sales YTD €',pytd:'Sales PLAN YTD'};"],
       ["x.est = x.mtd + x.o1; out.set(key, x);","out.set(key, x);"],
-      ["const m = managerName(manager), key = `${m}|${country}`;","const m = /^(armenia|germany)$/i.test(country) ? 'Ruslan Sollano' : managerName(manager), key = `${m}|${country}`;"],
+      ["const m = managerName(manager), key = `${m}|${country}`;","const m = /^(bosnia-herz\\.|croatia|kosovo|macedonia|rumania|serbia|slovenia)$/i.test(country) ? 'Lorenzo Losi' : /^(armenia|germany|malta)$/i.test(country) ? 'Ruslan Sollano' : managerName(manager), key = `${m}|${country}`;"],
       ["m:managerName(r.salesManager),c:r.country||''","m:/^(armenia|germany)$/i.test(r.country||'')?'Ruslan Sollano':managerName(r.salesManager),c:r.country||''"],
       ["teamRows=j.rows||[];gmByManager=j.gm||{};","teamRows=normalizeSnapshotRows(j.rows||[]);gmByManager=normalizeSnapshotGM(j.gm||{});"]
     ];
@@ -21,7 +21,7 @@
     }
 
     const anchor="const nextPaint = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));";
-    const helper = anchor + `\n\n  function normalizeSnapshotRows(rows){\n    const map=new Map();\n    for(const r0 of rows){\n      const r={...r0};\n      r.m=/^(armenia|germany)$/i.test(String(r.c||''))?'Ruslan Sollano':((r.m==='Filippo B. / Sergej'||r.m==='Filippo B/Sergej'||r.m==='Losi L')?'Lorenzo Losi':r.m);\n      const key=String(r.m)+'|'+String(r.c);\n      const x=map.get(key)||{m:r.m,c:r.c,oe:0,mtd:0,o1:0,est:0,plan:0,next:0,o2:0,ytd:0,pytd:0};\n      for(const k of ['oe','mtd','o1','plan','next','o2','ytd','pytd']) x[k]+=num(r[k]);\n      x.est=x.mtd+x.o1; map.set(key,x);\n    }\n    return [...map.values()].sort((a,b)=>String(a.m).localeCompare(String(b.m))||String(a.c).localeCompare(String(b.c)));\n  }\n  function normalizeSnapshotGM(g){\n    const o={...(g||{})};\n    if(o['Filippo B. / Sergej']!=null){o['Lorenzo Losi']=o['Filippo B. / Sergej'];delete o['Filippo B. / Sergej'];}\n    if(o['Filippo B/Sergej']!=null){o['Lorenzo Losi']=o['Filippo B/Sergej'];delete o['Filippo B/Sergej'];}\n    return o;\n  }`;
+    const helper = anchor + `\n\n  function normalizeSnapshotRows(rows){\n    const map=new Map();\n    for(const r0 of rows){\n      const r={...r0};\n      r.m=/^(bosnia-herz\.|croatia|kosovo|macedonia|rumania|serbia|slovenia)$/i.test(String(r.c||''))?'Lorenzo Losi':/^(armenia|germany|malta)$/i.test(String(r.c||''))?'Ruslan Sollano':((r.m==='Filippo B. / Sergej'||r.m==='Filippo B/Sergej'||r.m==='Losi L')?'Lorenzo Losi':r.m);\n      const key=String(r.m)+'|'+String(r.c);\n      const x=map.get(key)||{m:r.m,c:r.c,oe:0,mtd:0,o1:0,est:0,plan:0,next:0,o2:0,ytd:0,pytd:0};\n      for(const k of ['oe','mtd','o1','plan','next','o2','ytd','pytd']) x[k]+=num(r[k]);\n      x.est=x.mtd+x.o1; map.set(key,x);\n    }\n    return [...map.values()].sort((a,b)=>String(a.m).localeCompare(String(b.m))||String(a.c).localeCompare(String(b.c)));\n  }\n  function normalizeSnapshotGM(g){\n    const o={...(g||{})};\n    if(o['Filippo B. / Sergej']!=null){o['Lorenzo Losi']=o['Filippo B. / Sergej'];delete o['Filippo B. / Sergej'];}\n    if(o['Filippo B/Sergej']!=null){o['Lorenzo Losi']=o['Filippo B/Sergej'];delete o['Filippo B/Sergej'];}\n    return o;\n  }`;
     if(!code.includes(anchor)) throw new Error('Helper injection point not found');
     code=code.replace(anchor,helper);
 
@@ -34,7 +34,7 @@
         if (office !== 'Zilkowski S.' || !keep.has(raw)) continue;
         const c = String(val(r,map,'Country')).trim(), codeVal = String(val(r,map,'Codice')).trim(), name = String(val(r,map,'Descrizione')).trim();
         if (!c || !name || /^sum$/i.test(name)) continue;
-        const m = /^(armenia|germany)$/i.test(c) ? 'Ruslan Sollano' : managerName(raw);
+        const m = /^(bosnia-herz\.|croatia|kosovo|macedonia|rumania|serbia|slovenia)$/i.test(c) ? 'Lorenzo Losi' : /^(armenia|germany|malta)$/i.test(c) ? 'Ruslan Sollano' : managerName(raw);
         const fallback = String(name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');
         const identity = codeVal ? 'CODE:'+codeVal : 'NAME:'+fallback;
         const key = m+'|'+c+'|'+identity;
