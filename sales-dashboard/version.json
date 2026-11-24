@@ -1,1 +1,1 @@
-{"version":"2026.09.17.45","updated":"2026-11-24","message":"Monthly Undercar overview now syncs from current Undercar Detail totals instead of old snapshot"}
+{"version":"2026.09.17.46","updated":"2026-11-24","message":"Undercar overview reads Backlog Ord1, Forecast and Target by column label"}
