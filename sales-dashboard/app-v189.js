@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.40';
+  const UI_VERSION='2026.09.17.41';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -81,7 +81,7 @@
   }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026112040&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026112041&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
@@ -870,7 +870,7 @@
         const vals={
           sales,
           backlog,
-          forecast:sales+backlog,
+          forecast:reportMoneyNumber(sum.cells[4]?.textContent),
           target:reportMoneyNumber(sum.cells[5]?.textContent),
           ytd:reportMoneyNumber(sum.cells[7]?.textContent),
           ytdTarget:reportMoneyNumber(sum.cells[8]?.textContent)
