@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.44';
+  const UI_VERSION='2026.09.17.45';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -81,7 +81,7 @@
   }
 
   try{
-    let core=await realFetch('./app-v189-core.js?hotfix=2026112044&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
+    let core=await realFetch('./app-v189-core.js?hotfix=2026112045&ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Dashboard core could not be loaded');return r.text();});
     core=patchCompatibility(core);
     await (0,eval)(core);
 
@@ -1018,6 +1018,36 @@
         @page{size:A4 landscape;margin:10mm}
       }`;
     document.head.appendChild(reportStyle);
+
+    function syncUndercarOverviewFromDetail(){
+      const body=document.getElementById('countryBody');
+      const box=document.getElementById('undercarOverview');
+      if(!body||!box)return;
+      const total=[...body.querySelectorAll('tr.teamRow')].find(tr=>(tr.cells?.[0]?.textContent||'').trim()==='TOTAL TEAM');
+      if(!total||total.cells.length<10)return;
+      const mtd=reportMoneyNumber(total.cells[2]?.textContent);
+      const o1=reportMoneyNumber(total.cells[3]?.textContent);
+      const forecast=reportMoneyNumber(total.cells[4]?.textContent);
+      const target=reportMoneyNumber(total.cells[5]?.textContent);
+      const gap=forecast-target;
+      const pct=target?forecast/target:null;
+      const euroFmt=v=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v);
+      box.innerHTML=`
+        <div class="execKpi"><span>Sales MTD</span><b>${euroFmt(mtd)}</b></div>
+        <div class="execKpi"><span>Backlog Ord1</span><b>${euroFmt(o1)}</b></div>
+        <div class="execKpi emphasis"><span>Forecast</span><b>${euroFmt(forecast)}</b></div>
+        <div class="execKpi"><span>Target</span><b>${euroFmt(target)}</b></div>
+        <div class="execKpi"><span>Gap vs Target</span><b class="${gap>=0?'good':'bad'}">${gap>=0?'+':''}${euroFmt(gap)}</b></div>
+        <div class="execKpi"><span>Target %</span><b class="${pct!=null&&pct>=1?'good':'bad'}">${pct==null?'—':new Intl.NumberFormat('de-DE',{style:'percent',maximumFractionDigits:1}).format(pct)}</b></div>`;
+      const src=document.getElementById('overviewUndercarSource');
+      const detailSrc=document.getElementById('source')?.textContent?.trim();
+      if(src)src.textContent=detailSrc||'Current Undercar Detail';
+      scheduleMonthlyOverviewLabels();
+    }
+    const countryBodyForOverview=document.getElementById('countryBody');
+    if(countryBodyForOverview)new MutationObserver(()=>setTimeout(syncUndercarOverviewFromDetail,0)).observe(countryBodyForOverview,{childList:true,subtree:true,characterData:true});
+    document.getElementById('file')?.addEventListener('change',()=>setTimeout(syncUndercarOverviewFromDetail,350));
+    setTimeout(syncUndercarOverviewFromDetail,1400);
 
     addTeamDashboardTab();
     addReportTab();
