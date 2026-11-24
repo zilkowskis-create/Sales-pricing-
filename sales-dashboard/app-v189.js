@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.45';
+  const UI_VERSION='2026.09.17.46';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -1024,12 +1024,12 @@
       const box=document.getElementById('undercarOverview');
       if(!body||!box)return;
       const total=[...body.querySelectorAll('tr.teamRow')].find(tr=>(tr.cells?.[0]?.textContent||'').trim()==='TOTAL TEAM');
-      if(!total||total.cells.length<10)return;
-      const mtd=reportMoneyNumber(total.cells[2]?.textContent);
-      const o1=reportMoneyNumber(total.cells[3]?.textContent);
-      const forecast=reportMoneyNumber(total.cells[4]?.textContent);
-      const target=reportMoneyNumber(total.cells[5]?.textContent);
-      const gap=forecast-target;
+      const header=body.closest('table')?.tHead?.rows;
+      const columns=[...(header?.[header.length-1]?.cells||[])].map(cell=>cell.textContent.trim());
+      const required=['Sales MTD','Backlog Ord1','Forecast','MTD Target','Gap'];
+      const indexes=required.map(label=>columns.indexOf(label));
+      if(!total||indexes.some(index=>index<0||!total.cells[index]))return;
+      const [mtd,o1,forecast,target,gap]=indexes.map(index=>reportMoneyNumber(total.cells[index].textContent));
       const pct=target?forecast/target:null;
       const euroFmt=v=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v);
       box.innerHTML=`
