@@ -1,6 +1,6 @@
 (async()=>{
   'use strict';
-  const UI_VERSION='2026.09.17.46';
+  const UI_VERSION='2026.09.17.47';
   const status=document.getElementById('status');
   const nativeFetch=window.fetch.bind(window);
 
@@ -1018,6 +1018,22 @@
         @page{size:A4 landscape;margin:10mm}
       }`;
     document.head.appendChild(reportStyle);
+
+    const undercarSource=document.getElementById('source');
+    const undercarNotice=document.getElementById('undercarDataStatus');
+    function updateUndercarDataStatus(){
+      if(!undercarNotice)return;
+      const source=undercarSource?.textContent.trim()||'';
+      const loaded=source.startsWith('Loaded · ');
+      const message=loaded
+        ? 'Undercar report: '+source.slice('Loaded · '.length)
+        : (source.startsWith('Snapshot · ') ? 'Archived Undercar data ('+source.slice('Snapshot · '.length)+'). ' : '')+
+          'Select the current report using Load Undercar .xls. If the report is in a ZIP, extract the .xls first.';
+      undercarNotice.textContent=message;
+      undercarNotice.closest('#overview').dataset.undercarReport=loaded?'loaded':'pending';
+    }
+    if(undercarSource)new MutationObserver(updateUndercarDataStatus).observe(undercarSource,{childList:true,subtree:true,characterData:true});
+    updateUndercarDataStatus();
 
     function syncUndercarOverviewFromDetail(){
       const body=document.getElementById('countryBody');
