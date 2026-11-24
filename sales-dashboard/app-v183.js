@@ -38,7 +38,7 @@
     function val(row,map,name){const i=map[norm(name)];return i===undefined?'':row[i];}
     function parseUndercarRows(rows){
       const {rowIndex,map}=headerInfo(rows,['Sales Office','Country']);
-      const keep=new Set(['Krell H.','Bernardi F','Losi L','Zilkowski S.','Mindaugas Deikus','Sollano R.']);
+      const keep=new Set(['Bernardi F','Losi L','Zilkowski S.','Mindaugas Deikus','Sollano R.']);
       let office='',manager='';const t={mtd:0,oe:0,o1:0,forecast:0,plan:0,gap:0};
       for(let i=rowIndex+1;i<rows.length;i++){
         const r=rows[i];
