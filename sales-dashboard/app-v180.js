@@ -9,6 +9,8 @@
       ["if (x === 'Bernardi F' || x === 'Zilkowski S.') return 'Filippo B. / Sergej';","if (x === 'Bernardi F' || x === 'Zilkowski S.' || x === 'Losi L') return 'Lorenzo Losi';"],
       ["const keep = new Set(['Bernardi F', 'Zilkowski S.', 'Mindaugas Deikus', 'Sollano R.']);","const keep = new Set(['Bernardi F', 'Losi L', 'Zilkowski S.', 'Mindaugas Deikus', 'Sollano R.']);"],
       ["const keep = new Set(['Bernardi F', 'Mindaugas Deikus', 'Sollano R.']);","const keep = new Set(['Bernardi F', 'Losi L', 'Mindaugas Deikus', 'Sollano R.']);"],
+      ["const fields = {oe:'Order_entered',mtd:'Sales MTD - invoiced',o1:'Backlog - ord1',plan:'Plan',next:'Sales PLAN Next Month',o2:'Backlog next month - ord 2',ytd:'Somma di Sales YTD €',pytd:'Sales PLAN YTD'};","const fields = {oe:'Order_entered',mtd:'Sales MTD - invoiced',o1:'Backlog - ord1',est:'Sales Estimate Month [inv+ord1]',plan:'Plan',next:'Sales PLAN Next Month',o2:'Backlog next month - ord 2',ytd:'Somma di Sales YTD €',pytd:'Sales PLAN YTD'};"],
+      ["x.est = x.mtd + x.o1; out.set(key, x);","out.set(key, x);"],
       ["const m = managerName(manager), key = `${m}|${country}`;","const m = /^(armenia|germany)$/i.test(country) ? 'Ruslan Sollano' : managerName(manager), key = `${m}|${country}`;"],
       ["m:managerName(r.salesManager),c:r.country||''","m:/^(armenia|germany)$/i.test(r.country||'')?'Ruslan Sollano':managerName(r.salesManager),c:r.country||''"],
       ["teamRows=j.rows||[];gmByManager=j.gm||{};","teamRows=normalizeSnapshotRows(j.rows||[]);gmByManager=normalizeSnapshotGM(j.gm||{});"]
