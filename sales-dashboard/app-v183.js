@@ -38,20 +38,23 @@
     function val(row,map,name){const i=map[norm(name)];return i===undefined?'':row[i];}
     function parseUndercarRows(rows){
       const {rowIndex,map}=headerInfo(rows,['Sales Office','Country']);
-      const keep=new Set(['Bernardi F','Zilkowski S.','Mindaugas Deikus','Sollano R.']);
+      const keep=new Set(['Krell H.','Bernardi F','Losi L','Zilkowski S.','Mindaugas Deikus','Sollano R.']);
       let office='',manager='';const t={mtd:0,oe:0,o1:0,forecast:0,plan:0,gap:0};
       for(let i=rowIndex+1;i<rows.length;i++){
         const r=rows[i];
+        const org=String(r?.[0]??'').trim();
+        if(/^grand\s*total$/i.test(org))continue;
         if(val(r,map,'Sales Office')) office=String(val(r,map,'Sales Office')).trim();
         if(val(r,map,'Sales Manager')) manager=String(val(r,map,'Sales Manager')).trim();
         const country=String(val(r,map,'Country')).trim();
-        if(office!=='Zilkowski S.'||!keep.has(manager)||!country||/^sum$/i.test(country))continue;
+        if(office!=='Zilkowski S.'||!keep.has(manager)||/^sum$/i.test(country))continue;
         t.oe+=n(val(r,map,'Order_entered'));
         t.mtd+=n(val(r,map,'Sales MTD - invoiced'));
         t.o1+=n(val(r,map,'Backlog - ord1'));
+        t.forecast+=n(val(r,map,'Sales Estimate Month [inv+ord1]'));
         t.plan+=n(val(r,map,'Plan'));
       }
-      t.forecast=t.mtd+t.o1;t.gap=t.forecast-t.plan;return t;
+      t.gap=t.forecast-t.plan;return t;
     }
     async function loadUndercarSnapshot(){
       try{
